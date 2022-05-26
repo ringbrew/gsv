@@ -1,0 +1,68 @@
+syntax = "proto3";
+package example;
+
+option go_package = "github.com/ringbrew/example/export/example";
+
+import "google/api/annotations.proto";
+import "protoc-gen-openapiv2/options/annotations.proto";
+
+option (grpc.gateway.protoc_gen_openapiv2.options.openapiv2_swagger) = {
+  info: {
+    title: "example service";
+    version: "1.1";
+  };
+};
+
+message Example{
+  int64 id = 1;
+  string name = 2;
+  int64 age = 3;
+  string gender = 4;
+}
+
+message GetExampleReq{
+  string name = 1;
+}
+
+message GetExampleResp{
+  int64 code = 1;
+  string msg = 2;
+  Example data = 3;
+}
+
+message DelExampleReq{
+  string name = 1;
+}
+
+message OpResp{
+  int64 code = 1;
+  string msg = 2;
+}
+
+service Service{
+  rpc GetExample(GetExampleReq) returns (GetExampleResp){
+    option (google.api.http) = {
+      get: "/example-proxy/example"
+    };
+  };
+
+  rpc CreateExample(Example) returns (OpResp){
+    option (google.api.http) = {
+      post: "/example-proxy/example"
+      body: "*"
+    };
+  };
+
+  rpc UpdateExample(Example) returns (OpResp){
+    option (google.api.http) = {
+      put: "/example-proxy/example"
+      body: "*"
+    };
+  };
+
+  rpc DeleteExample(DelExampleReq) returns (OpResp){
+    option (google.api.http) = {
+      delete: "/example-proxy/example"
+    };
+  };
+}
