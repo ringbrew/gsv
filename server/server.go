@@ -2,13 +2,13 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"github.com/ringbrew/gsv/discovery"
 	"github.com/ringbrew/gsv/logger"
 	"github.com/ringbrew/gsv/service"
 	"github.com/ringbrew/gsv/tracex"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/stats"
-	"log"
 	"net/http"
 )
 
@@ -33,14 +33,21 @@ type Option struct {
 
 func Classic() Option {
 	return Option{
-		Port:               3000,
-		ProxyPort:          3001,
-		Logger:             logger.NewDefaultLogger(),
-		StreamInterceptors: []grpc.StreamServerInterceptor{},
+		Port:      3000,
+		ProxyPort: 3001,
+		Logger:    logger.NewDefaultLogger(),
+		StreamInterceptors: []grpc.StreamServerInterceptor{
+			RecoverStreamInterceptor(func(panic interface{}) {
+				logger.Fatal(logger.NewEntry().WithMessage(fmt.Sprintf("server panic:[%v]", panic)))
+			}),
+			TraceStreamServerInterceptor(),
+		},
 		UnaryInterceptors: []grpc.UnaryServerInterceptor{
-			recoverUnaryInterceptor(),
-			traceUnaryInterceptor(),
-			logUnaryInterceptor(),
+			RecoverUnaryInterceptor(func(panic interface{}) {
+				logger.Fatal(logger.NewEntry().WithMessage(fmt.Sprintf("server panic:[%v]", panic)))
+			}),
+			TraceUnaryInterceptor(),
+			LogUnaryInterceptor(),
 		},
 		HttpInterceptors: []http.HandlerFunc{},
 		TraceOption: tracex.Option{
@@ -51,20 +58,23 @@ func Classic() Option {
 	}
 }
 
+func (opt *Option) WithTraceOption(traceOpt tracex.Option) *Option {
+	opt.TraceOption = traceOpt
+	return opt
+}
+
 type Server interface {
 	Register(service service.Service) error
 	Run(ctx context.Context)
 }
 
-func NewServer(t Type, opts ...Option) Server {
-	if err := tracex.Init(); err != nil {
-		log.Fatal(err.Error())
-	}
+func NewServer(t Type, opts ...*Option) Server {
+	tracex.Init()
 
 	opt := Classic()
 
-	if len(opts) > 0 {
-		opt = opts[0]
+	if len(opts) > 0 && opts[0] != nil {
+		opt = *opts[0]
 	}
 
 	switch t {

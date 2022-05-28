@@ -15,7 +15,11 @@ const (
 	ExporterZipkin = "zipkin"
 )
 
-func Init(opts ...Option) error {
+func init() {
+	Init()
+}
+
+func Init(opts ...Option) {
 	opt := Option{
 		Sampler: 1,
 	}
@@ -36,8 +40,6 @@ func Init(opts ...Option) error {
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
 		logger.Error(logger.NewEntry().WithMessage(err.Error()))
 	}))
-
-	return nil
 }
 
 func newExporter(ctx context.Context, opt Option) (trace.SpanExporter, error) {

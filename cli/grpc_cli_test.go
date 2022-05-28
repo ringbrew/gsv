@@ -17,6 +17,7 @@ func TestCli(t *testing.T) {
 		t.Error(err)
 		return
 	}
+
 	exampleCli := example.NewServiceClient(c.Conn())
 	resp, err := exampleCli.GetExample(context.Background(), &example.GetExampleReq{Name: "test"})
 	if err != nil {

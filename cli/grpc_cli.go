@@ -13,8 +13,10 @@ type Option struct {
 
 func Classic() Option {
 	return Option{
-		Secure:             false,
-		StreamInterceptors: nil,
+		Secure: false,
+		StreamInterceptors: []grpc.StreamClientInterceptor{
+			TraceStreamInterceptor(),
+		},
 		UnaryInterceptors: []grpc.UnaryClientInterceptor{
 			TraceUnaryInterceptor(),
 			LogUnaryInterceptor(),
