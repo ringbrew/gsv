@@ -5,6 +5,7 @@ go 1.16
 require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.10.1
+	github.com/ringbrew/gsvcore v0.0.0-20220530172641-48d32c1de91e // indirect
 	go.opentelemetry.io/otel v1.7.0
 	go.opentelemetry.io/otel/exporters/zipkin v1.7.0
 	go.opentelemetry.io/otel/sdk v1.7.0

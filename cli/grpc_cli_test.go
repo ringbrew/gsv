@@ -3,9 +3,9 @@ package cli
 import (
 	"context"
 	"fmt"
-	"github.com/ringbrew/gsv/logger"
 	"github.com/ringbrew/gsv/service/example/export/example"
 	"github.com/ringbrew/gsv/tracex"
+	"github.com/ringbrew/gsvcore/logger"
 	"testing"
 )
 
