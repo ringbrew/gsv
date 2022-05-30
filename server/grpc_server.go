@@ -38,6 +38,7 @@ type grpcServer struct {
 
 func newGrpcServer(opt Option) *grpcServer {
 	s := &grpcServer{
+		host:               opt.Host,
 		port:               opt.Port,
 		proxyPort:          opt.ProxyPort,
 		streamInterceptors: opt.StreamInterceptors,
@@ -48,7 +49,9 @@ func newGrpcServer(opt Option) *grpcServer {
 		traceOption:        opt.TraceOption,
 	}
 
-	s.host = s.findListenOn()
+	if s.host == "" {
+		s.host = s.findListenOn()
+	}
 
 	opts := make([]grpc.ServerOption, 0)
 
@@ -174,7 +177,7 @@ func (gs *grpcServer) run(ctx context.Context) error {
 		}
 	}()
 
-	if gs.register != nil {
+	if gs.register != nil && gs.host != "" {
 		for i := range gs.serviceList {
 			node := discovery.NewNode(gs.host, gs.port, discovery.GRPC, gs.serviceList[i])
 			if err := gs.register.Register(node); err != nil {
@@ -206,7 +209,7 @@ func (gs *grpcServer) runGateway(ctx context.Context) error {
 		}
 	}()
 
-	if gs.register != nil {
+	if gs.register != nil && gs.host != "" {
 		for i := range gs.serviceList {
 			node := discovery.NewNode(gs.host, gs.proxyPort, discovery.HTTP, gs.serviceList[i])
 			if err := gs.register.Register(node); err != nil {
@@ -225,5 +228,14 @@ func (gs *grpcServer) runGateway(ctx context.Context) error {
 }
 
 func (gs *grpcServer) findListenOn() string {
-	return ""
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		logger.Warn(logger.NewEntry().WithMessage(fmt.Sprintf("failed to get server host, msg[%v]", err.Error())))
+		return ""
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+
+	return localAddr.IP.String()
 }

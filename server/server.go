@@ -19,9 +19,9 @@ const (
 )
 
 type Option struct {
+	Host               string
 	Port               int
 	ProxyPort          int
-	Logger             logger.Logger
 	StreamInterceptors []grpc.StreamServerInterceptor
 	UnaryInterceptors  []grpc.UnaryServerInterceptor
 	StatHandler        stats.Handler
@@ -35,7 +35,6 @@ func Classic() Option {
 	return Option{
 		Port:      3000,
 		ProxyPort: 3001,
-		Logger:    logger.NewDefaultLogger(),
 		StreamInterceptors: []grpc.StreamServerInterceptor{
 			RecoverStreamInterceptor(func(panic interface{}) {
 				logger.Fatal(logger.NewEntry().WithMessage(fmt.Sprintf("server panic:[%v]", panic)))

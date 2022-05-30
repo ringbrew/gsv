@@ -2,7 +2,6 @@ package discovery
 
 import (
 	"github.com/ringbrew/gsv/service"
-	"github.com/ringbrew/gsv/utils"
 )
 
 type Type string
@@ -22,7 +21,6 @@ type Node struct {
 
 func NewNode(host string, port int, t Type, svc service.Service) *Node {
 	return &Node{
-		Id:   utils.NewNodeId(),
 		Host: host,
 		Port: port,
 		Type: t,

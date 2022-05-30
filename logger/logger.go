@@ -20,8 +20,12 @@ const (
 )
 
 type LogEntry struct {
-	Message string
-	Extra   map[string]string
+	TraceId  string
+	SpanId   string
+	ParentId string
+	NodeIp   string
+	Message  string
+	Extra    map[string]string
 }
 
 func NewEntry(ctx ...context.Context) *LogEntry {
