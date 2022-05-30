@@ -3,8 +3,8 @@ package server
 import (
 	"context"
 	grpcLogging "github.com/grpc-ecosystem/go-grpc-middleware/logging"
-	"github.com/ringbrew/gsv/logger"
 	"github.com/ringbrew/gsv/tracex"
+	"github.com/ringbrew/gsvcore/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/codes"
