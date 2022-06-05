@@ -14,7 +14,6 @@ import (
 	grpcCodes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"strconv"
 	"time"
 )
 
@@ -43,9 +42,9 @@ func LogUnaryInterceptor() grpc.UnaryServerInterceptor {
 		code := grpcLogging.DefaultErrorToCode(err)
 		entry := logger.NewEntry(ctx)
 		entry = entry.WithExtra("method", info.FullMethod).
-			WithExtra("latency", duration.String()).
+			WithExtra("duration", duration.String()).
 			WithExtra("codeString", code.String()).
-			WithExtra("code", strconv.Itoa(int(code)))
+			WithExtra("code", code)
 
 		if err != nil {
 			logger.Error(entry.WithMessage(err.Error()))

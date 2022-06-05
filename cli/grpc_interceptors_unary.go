@@ -32,10 +32,17 @@ func LogUnaryInterceptor() grpc.UnaryClientInterceptor {
 			logger.Error(logger.NewEntry(ctx).WithMessage(fmt.Sprintf("call service[%s]-method[%s] error[%s]", cc.Target(), method, err.Error())))
 		} else {
 			elapsed := time.Since(start)
+			entry := logger.NewEntry(ctx)
+			entry.WithExtra("service", cc.Target())
+			entry.WithExtra("duration", elapsed)
+			entry.WithExtra("method", method)
+			entry.WithExtra("req", req)
+			entry.WithExtra("resp", reply)
+
 			if elapsed > slowThreshold {
-				logger.Warn(logger.NewEntry(ctx).WithMessage(fmt.Sprintf("call service[%s]-method[%s] slow duration[%s], - %v - %v", cc.Target(), method, elapsed, req, reply)))
+				logger.Warn(entry.WithMessage("rpc call slow"))
 			} else {
-				logger.Debug(logger.NewEntry(ctx).WithMessage(fmt.Sprintf("call service[%s]-method[%s] success duration[%s], - %v - %v", cc.Target(), method, elapsed, req, reply)))
+				logger.Warn(entry.WithMessage("rpc call success"))
 			}
 		}
 		return err
