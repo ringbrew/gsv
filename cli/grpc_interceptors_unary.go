@@ -3,8 +3,8 @@ package cli
 import (
 	"context"
 	"fmt"
+	"github.com/ringbrew/gsv/logger"
 	"github.com/ringbrew/gsv/tracex"
-	"github.com/ringbrew/gsvcore/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -12,7 +12,6 @@ import (
 	grpcCodes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"log"
 	"time"
 )
 
@@ -28,11 +27,6 @@ func LogUnaryInterceptor() grpc.UnaryClientInterceptor {
 		callOpts ...grpc.CallOption,
 	) error {
 		start := time.Now()
-
-		span := trace.SpanFromContext(ctx)
-		spanCtx := span.SpanContext()
-		log.Println(spanCtx.TraceID().String(), spanCtx.SpanID().String())
-
 		err := invoker(ctx, method, req, reply, cc, callOpts...)
 		if err != nil {
 			logger.Error(logger.NewEntry(ctx).WithMessage(fmt.Sprintf("call service[%s]-method[%s] error[%s]", cc.Target(), method, err.Error())))

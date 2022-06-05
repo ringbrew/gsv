@@ -2,7 +2,7 @@ package tracex
 
 import (
 	"context"
-	"github.com/ringbrew/gsvcore/logger"
+	"github.com/ringbrew/gsv/logger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/zipkin"
 	"go.opentelemetry.io/otel/propagation"

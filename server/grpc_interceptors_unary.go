@@ -3,8 +3,9 @@ package server
 import (
 	"context"
 	grpcLogging "github.com/grpc-ecosystem/go-grpc-middleware/logging"
+	"github.com/ringbrew/gsv/logger"
+	"github.com/ringbrew/gsv/service"
 	"github.com/ringbrew/gsv/tracex"
-	"github.com/ringbrew/gsvcore/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/codes"
@@ -13,7 +14,6 @@ import (
 	grpcCodes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"log"
 	"strconv"
 	"time"
 )
@@ -36,10 +36,6 @@ func RecoverUnaryInterceptor(f func(panic interface{})) grpc.UnaryServerIntercep
 func LogUnaryInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		startTime := time.Now()
-
-		span := trace.SpanFromContext(ctx)
-		spanCtx := span.SpanContext()
-		log.Println(spanCtx.TraceID().String(), spanCtx.SpanID().String())
 
 		resp, err := handler(ctx, req)
 		duration := time.Since(startTime)
@@ -84,6 +80,11 @@ func TraceUnaryInterceptor() grpc.UnaryServerInterceptor {
 		defer span.End()
 
 		tracex.MessageReceived.Event(ctx, 1, req)
+
+		sc := span.SpanContext()
+		rpcCtx := tracex.NewServiceContext(sc.TraceID(), sc.SpanID())
+
+		ctx = service.NewContext(ctx, rpcCtx)
 
 		resp, err := handler(ctx, req)
 		if err != nil {
