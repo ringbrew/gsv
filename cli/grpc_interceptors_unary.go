@@ -35,7 +35,7 @@ func LogUnaryInterceptor() grpc.UnaryClientInterceptor {
 			elapsed := time.Since(start)
 			entry := logger.NewEntry(ctx)
 			entry.WithExtra("service", cc.Target())
-			entry.WithExtra("duration", elapsed)
+			entry.WithExtra("duration", elapsed.String())
 			entry.WithExtra("method", method)
 			entry.WithExtra("req", req)
 			entry.WithExtra("resp", reply)
