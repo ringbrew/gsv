@@ -2,7 +2,7 @@ package service
 
 import "context"
 
-const gsvCtxKey = ""
+type gsvCtxKey struct{}
 
 type Context interface {
 	TraceId() string
@@ -16,11 +16,11 @@ type Context interface {
 
 // NewContext returns a new Context that carries value Context.
 func NewContext(ctx context.Context, gsvCtx Context) context.Context {
-	return context.WithValue(ctx, gsvCtxKey, gsvCtx)
+	return context.WithValue(ctx, gsvCtxKey{}, gsvCtx)
 }
 
 // FromContext returns the Context value stored in ctx, if any.
 func FromContext(ctx context.Context) (Context, bool) {
-	result, ok := ctx.Value(gsvCtxKey).(Context)
+	result, ok := ctx.Value(gsvCtxKey{}).(Context)
 	return result, ok
 }
