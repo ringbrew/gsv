@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/ringbrew/gsv/logger"
+	"github.com/ringbrew/gsv/service"
 	"github.com/ringbrew/gsv/tracex"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -42,7 +43,7 @@ func LogUnaryInterceptor() grpc.UnaryClientInterceptor {
 			if elapsed > slowThreshold {
 				logger.Warn(entry.WithMessage("rpc call slow"))
 			} else {
-				logger.Warn(entry.WithMessage("rpc call success"))
+				logger.Info(entry.WithMessage("rpc call success"))
 			}
 		}
 		return err
@@ -82,6 +83,10 @@ func TraceUnaryInterceptor() grpc.UnaryClientInterceptor {
 		ctx = metadata.NewOutgoingContext(ctx, metadataCopy)
 
 		tracex.MessageSent.Event(ctx, 1, req)
+
+		sc := span.SpanContext()
+		rpcCtx := tracex.NewServiceContext(sc.TraceID(), sc.SpanID())
+		ctx = service.NewContext(ctx, rpcCtx)
 
 		err := invoker(ctx, method, req, reply, cc, callOpts...)
 

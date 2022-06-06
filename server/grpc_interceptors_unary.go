@@ -82,7 +82,6 @@ func TraceUnaryInterceptor() grpc.UnaryServerInterceptor {
 
 		sc := span.SpanContext()
 		rpcCtx := tracex.NewServiceContext(sc.TraceID(), sc.SpanID())
-
 		ctx = service.NewContext(ctx, rpcCtx)
 
 		resp, err := handler(ctx, req)
