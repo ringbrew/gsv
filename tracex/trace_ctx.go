@@ -28,15 +28,27 @@ func NewServiceContext(traceId trace.TraceID, spanId trace.SpanID, parentId ...t
 }
 
 func (r *rpcCtx) TraceId() string {
-	return r.traceId.String()
+	if r.traceId.IsValid() {
+		return r.traceId.String()
+	} else {
+		return ""
+	}
 }
 
 func (r *rpcCtx) SpanId() string {
-	return r.spanId.String()
+	if r.spanId.IsValid() {
+		return r.spanId.String()
+	} else {
+		return ""
+	}
 }
 
 func (r *rpcCtx) ParentId() string {
-	return r.parentId.String()
+	if r.parentId.IsValid() {
+		return r.parentId.String()
+	} else {
+		return ""
+	}
 }
 
 func (r *rpcCtx) Keys() []string {
