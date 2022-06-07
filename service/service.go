@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
+	"net/http"
 )
 
 type Service interface {
@@ -25,6 +26,13 @@ type Description struct {
 	Valid           bool
 	GrpcServiceDesc []grpc.ServiceDesc
 	GrpcGateway     []GatewayRegister
+	HttpRoute       []HttpRoute
 }
 
 type GatewayRegister func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error
+
+type HttpRoute struct {
+	Path    string
+	Method  string
+	Handler http.HandlerFunc
+}

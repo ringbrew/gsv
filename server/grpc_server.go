@@ -76,7 +76,7 @@ func newGrpcServer(opt Option) *grpcServer {
 
 		hs := &http.Server{
 			Addr:    fmt.Sprintf(":%d", s.proxyPort),
-			Handler: s.recoverMiddleware(s.traceMiddleware(httpMux)),
+			Handler: gatewayRecoverMiddleware(gatewayTraceMiddleware(httpMux)),
 		}
 
 		s.gatewayMux = m
@@ -84,25 +84,6 @@ func newGrpcServer(opt Option) *grpcServer {
 	}
 
 	return s
-}
-
-func (gs *grpcServer) recoverMiddleware(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if r := recover(); r != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte(fmt.Sprintf("%v", r)))
-			}
-		}()
-		h.ServeHTTP(w, r)
-	})
-}
-
-func (gs *grpcServer) traceMiddleware(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		//todo pass the trace info.
-		h.ServeHTTP(w, r)
-	})
 }
 
 func (gs *grpcServer) Register(srv service.Service) error {
@@ -121,7 +102,7 @@ func (gs *grpcServer) Register(srv service.Service) error {
 }
 
 func (gs *grpcServer) Run(ctx context.Context) {
-	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithChainUnaryInterceptor(gatewayTraceyInterceptor())}
 
 	conn, err := grpc.Dial(fmt.Sprintf("127.0.0.1:%d", gs.port), opts...)
 	if err != nil {
@@ -205,7 +186,7 @@ func (gs *grpcServer) runGateway(ctx context.Context) error {
 		logger.Info(logger.NewEntry().WithMessage(fmt.Sprintf("rpc server gateway stop listen on: [%d]", gs.proxyPort)))
 
 		if err := gs.gSrvGateway.Shutdown(context.Background()); err != nil {
-			logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("failed to shutdown http server: %s", err.Error())))
+			logger.Fatal(logger.NewEntry().WithMessage(fmt.Sprintf("failed to shutdown http server: %s", err.Error())))
 		}
 	}()
 
@@ -219,8 +200,7 @@ func (gs *grpcServer) runGateway(ctx context.Context) error {
 	}
 	logger.Info(logger.NewEntry().WithMessage(fmt.Sprintf("rpc server gateway start listen on: [%d]", gs.proxyPort)))
 
-	if err := gs.gSrvGateway.ListenAndServe(); err != http.ErrServerClosed {
-		//s.l.Panic(logger.NewEntry().WithMessage(fmt.Sprintf("failed to listen and serve: %s", err.Error())).End())
+	if err := gs.gSrvGateway.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return err
 	}
 

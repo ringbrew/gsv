@@ -92,7 +92,17 @@ func GrpcExtract(ctx context.Context, md *metadata.MD) (baggage.Baggage, trace.S
 	ctx = c.Propagators.Extract(ctx, &metadataSupplier{
 		metadata: md,
 	})
+	return baggage.FromContext(ctx), trace.SpanContextFromContext(ctx)
+}
 
+func HttpInject(ctx context.Context, hc propagation.HeaderCarrier) {
+	c := NewConfig()
+	c.Propagators.Inject(ctx, hc)
+}
+
+func HttpExtract(ctx context.Context, hc propagation.HeaderCarrier) (baggage.Baggage, trace.SpanContext) {
+	c := NewConfig()
+	ctx = c.Propagators.Extract(ctx, hc)
 	return baggage.FromContext(ctx), trace.SpanContextFromContext(ctx)
 }
 

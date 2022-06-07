@@ -1,58 +1,63 @@
-package cli
+package server
 
 import (
 	"context"
 	"fmt"
-	"github.com/ringbrew/gsv/logger"
 	"github.com/ringbrew/gsv/service"
 	"github.com/ringbrew/gsv/tracex"
-	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	grpcCodes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"time"
+	"net/http"
 )
 
-var slowThreshold = time.Millisecond * 500
-
-func LogUnaryInterceptor() grpc.UnaryClientInterceptor {
-	return func(
-		ctx context.Context,
-		method string,
-		req, reply interface{},
-		cc *grpc.ClientConn,
-		invoker grpc.UnaryInvoker,
-		callOpts ...grpc.CallOption,
-	) error {
-		start := time.Now()
-		err := invoker(ctx, method, req, reply, cc, callOpts...)
-		if err != nil {
-			logger.Error(logger.NewEntry(ctx).WithMessage(fmt.Sprintf("call service[%s]-method[%s] error[%s]", cc.Target(), method, err.Error())))
-		} else {
-			elapsed := time.Since(start)
-			entry := logger.NewEntry(ctx)
-			entry.WithExtra("service", cc.Target())
-			entry.WithExtra("duration", elapsed.String())
-			entry.WithExtra("method", method)
-			entry.WithExtra("req", req)
-			entry.WithExtra("resp", reply)
-
-			if elapsed > slowThreshold {
-				logger.Warn(entry.WithMessage("rpc call slow"))
-			} else {
-				logger.Debug(entry.WithMessage("rpc call success"))
+func gatewayRecoverMiddleware(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if r := recover(); r != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(fmt.Sprintf("%v", r)))
 			}
-		}
-		return err
-	}
+		}()
+		h.ServeHTTP(w, r)
+	})
 }
 
-// TraceUnaryInterceptor returns a grpc.UnaryClientInterceptor suitable
-// for use in a grpc.Dial call.
-func TraceUnaryInterceptor() grpc.UnaryClientInterceptor {
+func gatewayTraceMiddleware(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		bags, spanCtx := tracex.HttpExtract(ctx, propagation.HeaderCarrier(r.Header))
+		ctx = baggage.ContextWithBaggage(ctx, bags)
+
+		tracer := tracex.NewConfig().TracerProvider.Tracer(
+			tracex.InstrumentationName,
+		)
+		fullPath := r.URL.Path
+
+		name, attr := tracex.SpanInfo(fullPath, tracex.PeerFromCtx(ctx))
+		ctx, span := tracer.Start(
+			trace.ContextWithRemoteSpanContext(ctx, spanCtx),
+			name,
+			trace.WithSpanKind(trace.SpanKindServer),
+			trace.WithAttributes(attr...),
+			trace.WithAttributes(semconv.NetAttributesFromHTTPRequest("tcp", r)...),
+			trace.WithAttributes(semconv.HTTPServerAttributesFromHTTPRequest("grpc-gateway", fullPath, r)...),
+		)
+		defer span.End()
+
+		r = r.WithContext(ctx)
+
+		h.ServeHTTP(w, r)
+	})
+}
+
+func gatewayTraceyInterceptor() grpc.UnaryClientInterceptor {
 	return func(
 		ctx context.Context,
 		method string,
@@ -66,7 +71,6 @@ func TraceUnaryInterceptor() grpc.UnaryClientInterceptor {
 
 		tracer := tracex.NewConfig().TracerProvider.Tracer(
 			tracex.InstrumentationName,
-			//trace.WithInstrumentationVersion(SemVersion()),
 		)
 
 		name, attr := tracex.SpanInfo(method, cc.Target())
@@ -102,9 +106,4 @@ func TraceUnaryInterceptor() grpc.UnaryClientInterceptor {
 
 		return err
 	}
-}
-
-// statusCodeAttr returns status code attribute based on given gRPC code.
-func statusCodeAttr(c grpcCodes.Code) attribute.KeyValue {
-	return tracex.GRPCStatusCodeKey.Int64(int64(c))
 }

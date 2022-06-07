@@ -7,28 +7,37 @@ import (
 	"github.com/ringbrew/gsv/logger"
 	"github.com/ringbrew/gsv/service"
 	"github.com/ringbrew/gsv/tracex"
+	"github.com/urfave/negroni"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/stats"
-	"net/http"
 )
 
 type Type string
 
 const (
 	GRPC Type = "grpc"
+	HTTP Type = "http"
 )
 
 type Option struct {
-	Host               string
-	Port               int
-	ProxyPort          int
+	Name           string
+	Host           string
+	Port           int
+	ProxyPort      int
+	TraceOption    tracex.Option
+	ServerRegister discovery.Register
+	CertFile       string
+	KeyFile        string
+
+	//grpc option.
 	StreamInterceptors []grpc.StreamServerInterceptor
 	UnaryInterceptors  []grpc.UnaryServerInterceptor
 	StatHandler        stats.Handler
-	HttpInterceptors   []http.HandlerFunc
-	ServerRegister     discovery.Register
-	EnableGrpcGateway  bool
-	TraceOption        tracex.Option
+
+	//http option
+	HttpMiddleware    []negroni.Handler
+	EnableGrpcGateway bool
+	EnableGzip        bool
 }
 
 func Classic() Option {
@@ -48,7 +57,10 @@ func Classic() Option {
 			TraceUnaryInterceptor(),
 			LogUnaryInterceptor(),
 		},
-		HttpInterceptors: []http.HandlerFunc{},
+		HttpMiddleware: []negroni.Handler{
+			NewHttpRecovery(),
+			NewHttpTracer(),
+			NewHttpLogger()},
 		TraceOption: tracex.Option{
 			Endpoint: "",
 			Exporter: "",
@@ -57,9 +69,8 @@ func Classic() Option {
 	}
 }
 
-func (opt *Option) WithTraceOption(traceOpt tracex.Option) *Option {
-	opt.TraceOption = traceOpt
-	return opt
+type SetNamer interface {
+	SetName(name string)
 }
 
 type Server interface {
@@ -79,6 +90,8 @@ func NewServer(t Type, opts ...*Option) Server {
 	switch t {
 	case GRPC:
 		return newGrpcServer(opt)
+	case HTTP:
+		return newHttpServer(opt)
 	default:
 		return nil
 	}
