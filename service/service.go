@@ -31,6 +31,8 @@ type Description struct {
 
 type GatewayRegister func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error
 
+const MethodAll = "all"
+
 type HttpRoute struct {
 	Path    string
 	Method  string
@@ -46,6 +48,10 @@ func (c *HttpRouteCollector) append(method string, path string, handler http.Han
 		Handler: handler,
 	}
 	*c = append(*c, r)
+}
+
+func (c *HttpRouteCollector) Map(path string, handler http.HandlerFunc) {
+	c.append(MethodAll, path, handler)
 }
 
 func (c *HttpRouteCollector) MapMethods(method string, path string, handler http.HandlerFunc) {

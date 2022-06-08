@@ -48,13 +48,17 @@ func newHttpServer(opts ...Option) *httpServer {
 	}
 }
 
-func (s *httpServer) Register(service service.Service) error {
-	s.serviceList = append(s.serviceList, service)
+func (s *httpServer) Register(svc service.Service) error {
+	s.serviceList = append(s.serviceList, svc)
 	for i := range s.serviceList {
 		desc := s.serviceList[i].Description()
 		for ii := range desc.HttpRoute {
 			routeInfo := desc.HttpRoute[ii]
-			s.router.HandleFunc(routeInfo.Path, routeInfo.Handler).Methods(routeInfo.Method)
+			if routeInfo.Method == service.MethodAll {
+				s.router.HandleFunc(routeInfo.Path, routeInfo.Handler)
+			} else {
+				s.router.HandleFunc(routeInfo.Path, routeInfo.Handler).Methods(routeInfo.Method)
+			}
 		}
 	}
 	return nil
