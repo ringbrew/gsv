@@ -111,7 +111,9 @@ func (gs *grpcServer) Run(ctx context.Context) {
 	for i := range gs.serviceList {
 		desc := gs.serviceList[i].Description()
 
-		gs.gSrv.RegisterService(&desc.GrpcServiceDesc[i], gs.serviceList[i])
+		for _, v := range desc.GrpcServiceDesc {
+			gs.gSrv.RegisterService(&v, gs.serviceList[i])
+		}
 
 		for _, f := range desc.GrpcGateway {
 			if err := f(context.Background(), gs.gatewayMux, conn); err != nil {
