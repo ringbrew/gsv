@@ -37,6 +37,7 @@ func gatewayTraceMiddleware(h http.Handler) http.Handler {
 
 		tracer := tracex.NewConfig().TracerProvider.Tracer(
 			tracex.InstrumentationName,
+			trace.WithInstrumentationVersion(tracex.SemVersion()),
 		)
 		fullPath := r.URL.Path
 
@@ -71,6 +72,7 @@ func gatewayTraceyInterceptor() grpc.UnaryClientInterceptor {
 
 		tracer := tracex.NewConfig().TracerProvider.Tracer(
 			tracex.InstrumentationName,
+			trace.WithInstrumentationVersion(tracex.SemVersion()),
 		)
 
 		name, attr := tracex.SpanInfo(method, cc.Target())

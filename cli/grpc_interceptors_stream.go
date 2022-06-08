@@ -29,7 +29,7 @@ func TraceStreamInterceptor() grpc.StreamClientInterceptor {
 
 		tracer := tracex.NewConfig().TracerProvider.Tracer(
 			tracex.InstrumentationName,
-			//trace.WithInstrumentationVersion(SemVersion()),
+			trace.WithInstrumentationVersion(tracex.SemVersion()),
 		)
 
 		name, attr := tracex.SpanInfo(method, cc.Target())

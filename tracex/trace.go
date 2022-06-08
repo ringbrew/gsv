@@ -18,6 +18,16 @@ const (
 	InstrumentationName = "github.com/ringbrew/gsv"
 )
 
+// Version is the current release version of the gsv instrumentation.
+func Version() string {
+	return "1.0.0"
+}
+
+// SemVersion is the semantic version to be supplied to tracer/meter creation.
+func SemVersion() string {
+	return "semver:" + Version()
+}
+
 // Config is a group of options for this instrumentation.
 type Config struct {
 	Propagators    propagation.TextMapPropagator
@@ -45,6 +55,7 @@ type Option struct {
 	Endpoint string  `json:"endpoint"`
 	Exporter string  `json:"exporter"`
 	Sampler  float64 `json:"sampler"`
+	Debug    bool    `json:"debug"`
 }
 
 type metadataSupplier struct {

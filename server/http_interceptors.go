@@ -186,6 +186,7 @@ func (ht *HttpTracer) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 
 	tracer := tracex.NewConfig().TracerProvider.Tracer(
 		tracex.InstrumentationName,
+		trace.WithInstrumentationVersion(tracex.SemVersion()),
 	)
 	fullPath := r.URL.Path
 

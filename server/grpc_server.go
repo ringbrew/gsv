@@ -46,7 +46,6 @@ func newGrpcServer(opt Option) *grpcServer {
 		statHandler:        opt.StatHandler,
 		register:           opt.ServerRegister,
 		enableGateway:      opt.EnableGrpcGateway,
-		traceOption:        opt.TraceOption,
 	}
 
 	if s.host == "" {

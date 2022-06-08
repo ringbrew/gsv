@@ -66,7 +66,7 @@ func TraceUnaryInterceptor() grpc.UnaryServerInterceptor {
 
 		tracer := tracex.NewConfig().TracerProvider.Tracer(
 			tracex.InstrumentationName,
-			//trace.WithInstrumentationVersion(SemVersion()),
+			trace.WithInstrumentationVersion(tracex.SemVersion()),
 		)
 
 		name, attr := tracex.SpanInfo(info.FullMethod, tracex.PeerFromCtx(ctx))

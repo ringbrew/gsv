@@ -6,8 +6,8 @@ import (
 	"github.com/ringbrew/gsv/discovery"
 	"github.com/ringbrew/gsv/logger"
 	"github.com/ringbrew/gsv/service"
-	"github.com/ringbrew/gsv/tracex"
 	"github.com/urfave/negroni"
+	stdout "go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/stats"
 )
@@ -24,7 +24,6 @@ type Option struct {
 	Host           string
 	Port           int
 	ProxyPort      int
-	TraceOption    tracex.Option
 	ServerRegister discovery.Register
 	CertFile       string
 	KeyFile        string
@@ -61,11 +60,6 @@ func Classic() Option {
 			NewHttpRecovery(),
 			NewHttpTracer(),
 			NewHttpLogger()},
-		TraceOption: tracex.Option{
-			Endpoint: "",
-			Exporter: "",
-			Sampler:  1,
-		},
 	}
 }
 
@@ -79,7 +73,7 @@ type Server interface {
 }
 
 func NewServer(t Type, opts ...*Option) Server {
-	tracex.Init()
+	stdout.WithPrettyPrint()
 
 	opt := Classic()
 
