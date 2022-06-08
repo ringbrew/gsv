@@ -207,6 +207,11 @@ func (ht *HttpTracer) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 
 	r = r.WithContext(ctx)
 
+	traceId := span.SpanContext().TraceID()
+	if traceId.IsValid() {
+		rw.Header().Set("x-trace-id", traceId.String())
+	}
+
 	next(rw, r)
 
 	status := 0
@@ -218,4 +223,5 @@ func (ht *HttpTracer) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 	spanStatus, spanMessage := semconv.SpanStatusFromHTTPStatusCode(status)
 	span.SetAttributes(attrs...)
 	span.SetStatus(spanStatus, spanMessage)
+
 }
