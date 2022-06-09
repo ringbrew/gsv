@@ -15,7 +15,6 @@ type httpServer struct {
 	port        int
 	router      *mux.Router      //需要验证身份的路由
 	srv         *negroni.Negroni //negroni服务器
-	gzip        bool             //是否启用gzip
 	certFile    string           //证书路径
 	keyFile     string           //证书路径
 	serviceList []service.Service
@@ -44,7 +43,6 @@ func newHttpServer(opts ...Option) *httpServer {
 		port:   opt.Port,
 		router: mux.NewRouter(),
 		srv:    s,
-		gzip:   opt.EnableGzip,
 	}
 }
 

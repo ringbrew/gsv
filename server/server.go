@@ -36,7 +36,6 @@ type Option struct {
 	//http option
 	HttpMiddleware    []negroni.Handler
 	EnableGrpcGateway bool
-	EnableGzip        bool
 }
 
 func Classic() Option {
