@@ -44,13 +44,13 @@ func Classic() Option {
 		ProxyPort: 3001,
 		StreamInterceptors: []grpc.StreamServerInterceptor{
 			RecoverStreamInterceptor(func(panic interface{}) {
-				logger.Fatal(logger.NewEntry().WithMessage(fmt.Sprintf("server panic:[%v]", panic)))
+				logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server panic:[%v]", panic)))
 			}),
 			TraceStreamServerInterceptor(),
 		},
 		UnaryInterceptors: []grpc.UnaryServerInterceptor{
 			RecoverUnaryInterceptor(func(panic interface{}) {
-				logger.Fatal(logger.NewEntry().WithMessage(fmt.Sprintf("server panic:[%v]", panic)))
+				logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server panic:[%v]", panic)))
 			}),
 			TraceUnaryInterceptor(),
 			LogUnaryInterceptor(),

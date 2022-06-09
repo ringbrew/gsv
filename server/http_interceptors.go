@@ -103,14 +103,14 @@ func (rec *HttpRecovery) ServeHTTP(rw http.ResponseWriter, r *http.Request, next
 				infos.Stack = stack
 			}
 
-			logger.Fatal(logger.NewEntry(r.Context()).WithMessage(fmt.Sprintf(panicText, err, stack)))
+			logger.Error(logger.NewEntry(r.Context()).WithMessage(fmt.Sprintf(panicText, err, stack)))
 			rec.Formatter.FormatPanicError(rw, r, infos)
 
 			if rec.PanicHandlerFunc != nil {
 				func() {
 					defer func() {
 						if err := recover(); err != nil {
-							logger.Fatal(logger.NewEntry(r.Context()).WithMessage(fmt.Sprintf("provided PanicHandlerFunc panic'd: %s, trace:\n%s", err, debug.Stack())))
+							logger.Error(logger.NewEntry(r.Context()).WithMessage(fmt.Sprintf("provided PanicHandlerFunc panic'd: %s, trace:\n%s", err, debug.Stack())))
 						}
 					}()
 					rec.PanicHandlerFunc(infos)
