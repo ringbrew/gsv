@@ -43,7 +43,7 @@ func LogUnaryInterceptor() grpc.UnaryClientInterceptor {
 			if elapsed > slowThreshold {
 				logger.Warn(entry.WithMessage("rpc call slow"))
 			} else {
-				logger.Debug(entry.WithMessage("rpc call success"))
+				logger.Info(entry.WithMessage("rpc call success"))
 			}
 		}
 		return err

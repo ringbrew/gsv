@@ -162,7 +162,7 @@ func (hl *HttpLogger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 	if status >= http.StatusBadRequest {
 		logger.Error(entry)
 	} else {
-		logger.Info(entry)
+		logger.Info(entry.WithMessage("success"))
 	}
 }
 
