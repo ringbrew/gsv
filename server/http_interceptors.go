@@ -20,7 +20,7 @@ import (
 	HttpRecovery fork from negroni
 */
 const nilRequestMessage = "Request is nil"
-const panicText = "PANIC: %s\n%s"
+const panicText = "PANIC: %s"
 
 // PanicInformation contains all
 // elements for printing stack informations.
@@ -61,7 +61,7 @@ type HttpRecovery struct {
 // NewHttpRecovery returns a new instance of HttpRecovery
 func NewHttpRecovery() *HttpRecovery {
 	return &HttpRecovery{
-		PrintStack: true,
+		PrintStack: false,
 		StackAll:   false,
 		StackSize:  1024 * 8,
 		Formatter:  &TextPanicFormatter{},
@@ -87,7 +87,7 @@ func (t *TextPanicFormatter) FormatPanicError(rw http.ResponseWriter, r *http.Re
 	if rw.Header().Get("Content-Type") == "" {
 		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	}
-	fmt.Fprintf(rw, panicText, infos.RecoveredPanic, infos.Stack)
+	fmt.Fprintf(rw, panicText, infos.RecoveredPanic)
 }
 
 func (rec *HttpRecovery) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
@@ -103,7 +103,7 @@ func (rec *HttpRecovery) ServeHTTP(rw http.ResponseWriter, r *http.Request, next
 				infos.Stack = stack
 			}
 
-			logger.Error(logger.NewEntry(r.Context()).WithMessage(fmt.Sprintf(panicText, err, stack)))
+			logger.Error(logger.NewEntry(r.Context()).WithMessage(fmt.Sprintf(panicText+".stack:[%s]", err, stack)))
 			rec.Formatter.FormatPanicError(rw, r, infos)
 
 			if rec.PanicHandlerFunc != nil {
