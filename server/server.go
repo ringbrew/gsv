@@ -7,7 +7,6 @@ import (
 	"github.com/ringbrew/gsv/logger"
 	"github.com/ringbrew/gsv/service"
 	"github.com/urfave/negroni"
-	stdout "go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/stats"
 )
@@ -72,8 +71,6 @@ type Server interface {
 }
 
 func NewServer(t Type, opts ...*Option) Server {
-	stdout.WithPrettyPrint()
-
 	opt := Classic()
 
 	if len(opts) > 0 && opts[0] != nil {
