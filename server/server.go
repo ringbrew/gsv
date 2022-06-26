@@ -28,13 +28,14 @@ type Option struct {
 	KeyFile        string
 
 	//grpc option.
+	EnableGrpcGateway  bool
 	StreamInterceptors []grpc.StreamServerInterceptor
 	UnaryInterceptors  []grpc.UnaryServerInterceptor
 	StatHandler        stats.Handler
 
 	//http option
-	HttpMiddleware    []negroni.Handler
-	EnableGrpcGateway bool
+	HttpMiddleware  []negroni.Handler
+	EnableDocServer bool
 }
 
 func Classic() Option {
