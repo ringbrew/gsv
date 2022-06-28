@@ -17,9 +17,11 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 )
 
 type grpcServer struct {
+	name               string
 	host               string
 	port               int
 	proxyPort          int
@@ -27,7 +29,7 @@ type grpcServer struct {
 	streamInterceptors []grpc.StreamServerInterceptor
 	unaryInterceptors  []grpc.UnaryServerInterceptor
 	statHandler        stats.Handler
-	register           discovery.Register
+	register           discovery.NodeRegister
 	traceOption        tracex.Option
 
 	enableGateway bool
@@ -38,6 +40,7 @@ type grpcServer struct {
 
 func newGrpcServer(opt Option) *grpcServer {
 	s := &grpcServer{
+		name:               opt.Name,
 		host:               opt.Host,
 		port:               opt.Port,
 		proxyPort:          opt.ProxyPort,
@@ -159,13 +162,30 @@ func (gs *grpcServer) run(ctx context.Context) error {
 		}
 	}()
 
-	if gs.register != nil && gs.host != "" {
-		for i := range gs.serviceList {
-			node := discovery.NewNode(gs.host, gs.port, discovery.GRPC, gs.serviceList[i])
-			if err := gs.register.Register(node); err != nil {
-				return err
-			}
+	if gs.register != nil && gs.name != "" && gs.host != "" {
+		node := discovery.NewNode(gs.name, gs.host, gs.port, discovery.GRPC)
+		if err := gs.register.Register(node); err != nil {
+			return err
 		}
+
+		go func() {
+			defer func() {
+				if p := recover(); p != nil {
+					logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server[%s] keep alive panic:%v", gs.name, p)))
+				}
+			}()
+			ticker := time.NewTicker(10 * time.Second)
+			for {
+				select {
+				case <-ticker.C:
+					if err := gs.register.KeepAlive(node); err != nil {
+						logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server[%s] keep alive error:%v", gs.name, err.Error())))
+					}
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
 	}
 
 	logger.Info(logger.NewEntry().WithMessage(fmt.Sprintf("rpc server start listen on: [%d]", gs.port)))
@@ -191,13 +211,29 @@ func (gs *grpcServer) runGateway(ctx context.Context) error {
 		}
 	}()
 
-	if gs.register != nil && gs.host != "" {
-		for i := range gs.serviceList {
-			node := discovery.NewNode(gs.host, gs.proxyPort, discovery.HTTP, gs.serviceList[i])
-			if err := gs.register.Register(node); err != nil {
-				return err
-			}
+	if gs.register != nil && gs.name != "" && gs.host != "" {
+		node := discovery.NewNode(gs.name, gs.host, gs.proxyPort, discovery.HTTP)
+		if err := gs.register.Register(node); err != nil {
+			return err
 		}
+		go func() {
+			defer func() {
+				if p := recover(); p != nil {
+					logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server[%s] gateway keep alive panic:%v", gs.name, p)))
+				}
+			}()
+			ticker := time.NewTicker(10 * time.Second)
+			for {
+				select {
+				case <-ticker.C:
+					if err := gs.register.KeepAlive(node); err != nil {
+						logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server[%s] gateway keep alive error:%v", gs.name, err.Error())))
+					}
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
 	}
 	logger.Info(logger.NewEntry().WithMessage(fmt.Sprintf("rpc server gateway start listen on: [%d]", gs.proxyPort)))
 

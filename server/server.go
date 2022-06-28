@@ -23,7 +23,7 @@ type Option struct {
 	Host           string
 	Port           int
 	ProxyPort      int
-	ServerRegister discovery.Register
+	ServerRegister discovery.NodeRegister
 	CertFile       string
 	KeyFile        string
 

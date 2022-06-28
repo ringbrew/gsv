@@ -57,6 +57,8 @@ func NewClient(target string, opts ...Option) (Client, error) {
 		dialOpts = append(dialOpts, grpc.WithChainStreamInterceptor(opt.StreamInterceptors...))
 	}
 
+	dialOpts = append(dialOpts, grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`))
+
 	conn, err := grpc.Dial(target, dialOpts...)
 	if err != nil {
 		return nil, err

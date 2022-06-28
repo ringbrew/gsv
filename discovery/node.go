@@ -1,7 +1,7 @@
 package discovery
 
 import (
-	"github.com/ringbrew/gsv/service"
+	"github.com/google/uuid"
 )
 
 type Type string
@@ -12,18 +12,19 @@ const (
 )
 
 type Node struct {
-	Id   string
-	Host string
-	Port int
-	Type Type
-	Svc  service.Service
+	Id   string `json:"id"`
+	Name string `json:"name"`
+	Host string `json:"host"`
+	Port int    `json:"port"`
+	Type Type   `json:"type"`
 }
 
-func NewNode(host string, port int, t Type, svc service.Service) *Node {
+func NewNode(name, host string, port int, t Type) *Node {
 	return &Node{
+		Id:   uuid.New().String(),
+		Name: name,
 		Host: host,
 		Port: port,
 		Type: t,
-		Svc:  svc,
 	}
 }
