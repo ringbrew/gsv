@@ -24,9 +24,15 @@ func NewResolverBuilder(nd NodeDiscover) *ResolverBuilder {
 }
 
 func (rb *ResolverBuilder) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOptions) (resolver.Resolver, error) {
-	eventChan := rb.nd.Watch(target.URL.Path, GRPC)
+	eventChan, err := rb.nd.Watch(target.URL.Path, GRPC)
+	if err != nil {
+		return nil, err
+	}
 
-	nodeList := rb.nd.Node(target.URL.Path, GRPC)
+	nodeList, err := rb.nd.Node(target.URL.Path, GRPC)
+	if err != nil {
+		return nil, err
+	}
 
 	r := &gsvResolver{
 		target:    target,
@@ -47,10 +53,11 @@ func (rb *ResolverBuilder) Build(target resolver.Target, cc resolver.ClientConn,
 		}()
 		ticker := time.NewTicker(time.Minute)
 		for range ticker.C {
-			nl := rb.nd.Node(target.URL.Path, GRPC)
-			eventChan <- NodeEvent{
-				Event: NodeEventSync,
-				Node:  nl,
+			if nl, err := rb.nd.Node(target.URL.Path, GRPC); err == nil {
+				eventChan <- NodeEvent{
+					Event: NodeEventSync,
+					Node:  nl,
+				}
 			}
 		}
 	}()
