@@ -1,7 +1,7 @@
 package discovery
 
 type NodeDiscover interface {
-	Node(name string, nodeType Type) ([]Node, error)
+	Node(name string, nodeType Type) ([]*Node, error)
 	Watch(name string, nodeType Type) (chan NodeEvent, error)
 }
 
@@ -21,5 +21,5 @@ const (
 
 type NodeEvent struct {
 	Event NodeEventType
-	Node  []Node
+	Node  []*Node
 }

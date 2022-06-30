@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"github.com/google/uuid"
+	"sync"
 )
 
 type Type string
@@ -12,12 +13,12 @@ const (
 )
 
 type Node struct {
-	Id    string                 `json:"id"`
-	Name  string                 `json:"name"`
-	Host  string                 `json:"host"`
-	Port  int                    `json:"port"`
-	Type  Type                   `json:"type"`
-	Extra map[string]interface{} `json:"-"`
+	Id    string   `json:"id"`
+	Name  string   `json:"name"`
+	Host  string   `json:"host"`
+	Port  int      `json:"port"`
+	Type  Type     `json:"type"`
+	Extra sync.Map `json:"-"`
 }
 
 func NewNode(name, host string, port int, t Type) *Node {

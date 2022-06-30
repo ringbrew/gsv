@@ -17,7 +17,6 @@ import (
 	"net"
 	"net/http"
 	"sync"
-	"time"
 )
 
 type grpcServer struct {
@@ -174,16 +173,8 @@ func (gs *grpcServer) run(ctx context.Context) error {
 					logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server[%s] keep alive panic:%v", gs.name, p)))
 				}
 			}()
-			ticker := time.NewTicker(10 * time.Second)
-			for {
-				select {
-				case <-ticker.C:
-					if err := gs.register.KeepAlive(node); err != nil {
-						logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server[%s] keep alive error:%v", gs.name, err.Error())))
-					}
-				case <-ctx.Done():
-					return
-				}
+			if err := gs.register.KeepAlive(node); err != nil {
+				logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server[%s] keep alive error:%v", gs.name, err.Error())))
 			}
 		}()
 	}
@@ -222,16 +213,8 @@ func (gs *grpcServer) runGateway(ctx context.Context) error {
 					logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server[%s] gateway keep alive panic:%v", gs.name, p)))
 				}
 			}()
-			ticker := time.NewTicker(10 * time.Second)
-			for {
-				select {
-				case <-ticker.C:
-					if err := gs.register.KeepAlive(node); err != nil {
-						logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server[%s] gateway keep alive error:%v", gs.name, err.Error())))
-					}
-				case <-ctx.Done():
-					return
-				}
+			if err := gs.register.KeepAlive(node); err != nil {
+				logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server[%s] gateway keep alive error:%v", gs.name, err.Error())))
 			}
 		}()
 	}

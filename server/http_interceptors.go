@@ -119,6 +119,8 @@ func (rec *HttpRecovery) ServeHTTP(rw http.ResponseWriter, r *http.Request, next
 		}
 	}()
 
+	rw = NewHttpResponseDumpWriter(rw)
+
 	next(rw, r)
 }
 
@@ -141,7 +143,9 @@ func (hl *HttpLogger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 
 	status := 0
 	size := 0
-	if res, ok := rw.(negroni.ResponseWriter); ok {
+
+	res, ok := rw.(HttpResponseWriter)
+	if ok {
 		status = res.Status()
 		size = res.Size()
 	}
@@ -160,7 +164,7 @@ func (hl *HttpLogger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 	}
 
 	if status >= http.StatusBadRequest {
-		logger.Error(entry)
+		logger.Error(entry.WithMessage(string(res.Dump())))
 	} else {
 		logger.Info(entry.WithMessage("success"))
 	}
@@ -224,4 +228,46 @@ func (ht *HttpTracer) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 	span.SetAttributes(attrs...)
 	span.SetStatus(spanStatus, spanMessage)
 
+}
+
+func NewHttpResponseDumpWriter(rw http.ResponseWriter) http.ResponseWriter {
+	if nrw, ok := rw.(negroni.ResponseWriter); !ok {
+		return rw
+	} else {
+		srw := &responseDumpWriter{
+			ResponseWriter: nrw,
+		}
+		return srw
+	}
+}
+
+type responseDumpWriter struct {
+	negroni.ResponseWriter
+	status  int
+	success bool
+	dump    []byte
+}
+
+func (rw *responseDumpWriter) WriteHeader(s int) {
+	rw.status = s
+	if s >= http.StatusBadRequest {
+		rw.success = false
+	}
+	rw.ResponseWriter.WriteHeader(s)
+}
+
+func (rw *responseDumpWriter) Write(b []byte) (int, error) {
+	if !rw.Written() {
+		// The status will be StatusOK if WriteHeader has not been called yet
+		rw.WriteHeader(http.StatusOK)
+	}
+
+	rw.dump = append(rw.dump, b...)
+
+	size, err := rw.ResponseWriter.Write(b)
+	return size, err
+}
+
+func (rw *responseDumpWriter) Dump() []byte {
+	return rw.dump
 }

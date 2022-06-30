@@ -37,7 +37,7 @@ func (rb *ResolverBuilder) Build(target resolver.Target, cc resolver.ClientConn,
 	r := &gsvResolver{
 		target:    target,
 		cc:        cc,
-		cache:     map[string]Node{},
+		cache:     make(map[string]*Node),
 		eventChan: eventChan,
 	}
 
@@ -78,7 +78,7 @@ func (*ResolverBuilder) Scheme() string { return SchemeName }
 type gsvResolver struct {
 	target    resolver.Target
 	cc        resolver.ClientConn
-	cache     map[string]Node
+	cache     map[string]*Node
 	eventChan chan NodeEvent
 }
 
@@ -105,7 +105,7 @@ func (r *gsvResolver) watch() {
 			}
 			updateState()
 		case NodeEventSync:
-			r.cache = make(map[string]Node)
+			r.cache = make(map[string]*Node)
 			for _, node := range event.Node {
 				r.cache[node.Id] = node
 			}
