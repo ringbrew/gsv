@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ringbrew/gsv/logger"
 	"google.golang.org/grpc/resolver"
+	"strings"
 	"time"
 )
 
@@ -24,12 +25,14 @@ func NewResolverBuilder(nd NodeDiscover) *ResolverBuilder {
 }
 
 func (rb *ResolverBuilder) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOptions) (resolver.Resolver, error) {
-	eventChan, err := rb.nd.Watch(target.URL.Path, GRPC)
+	endpoint := strings.TrimLeft(target.URL.Path, "/")
+
+	eventChan, err := rb.nd.Watch(endpoint, GRPC)
 	if err != nil {
 		return nil, err
 	}
 
-	nodeList, err := rb.nd.Node(target.URL.Path, GRPC)
+	nodeList, err := rb.nd.Node(endpoint, GRPC)
 	if err != nil {
 		return nil, err
 	}
@@ -91,6 +94,8 @@ func (r *gsvResolver) watch() {
 		}
 		_ = r.cc.UpdateState(resolver.State{Addresses: resolverAddr})
 	}
+
+	updateState()
 
 	for event := range r.eventChan {
 		switch event.Event {
