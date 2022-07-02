@@ -11,6 +11,10 @@ func SetLogger(ll Logger) {
 	l = ll
 }
 
+func SetLevel(ll Level) {
+	l.SetLevel(ll)
+}
+
 type Level uint8
 
 const (
