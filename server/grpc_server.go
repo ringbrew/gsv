@@ -35,6 +35,8 @@ type grpcServer struct {
 	gSrvGateway   *http.Server
 	gatewayMux    *runtime.ServeMux
 	serviceList   []service.Service
+
+	WaitGroup sync.WaitGroup
 }
 
 func newGrpcServer(opt Option) *grpcServer {
@@ -124,27 +126,25 @@ func (gs *grpcServer) Run(ctx context.Context) {
 		}
 	}
 
-	wg := sync.WaitGroup{}
+	gs.WaitGroup = sync.WaitGroup{}
 
 	if gs.enableGateway {
-		wg.Add(1)
+		gs.WaitGroup.Add(1)
 		go func() {
-			defer wg.Done()
 			if err := gs.runGateway(ctx); err != nil {
 				log.Fatal(fmt.Errorf("server gateway run error:%s", err.Error()))
 			}
 		}()
 	}
 
-	wg.Add(1)
+	gs.WaitGroup.Add(1)
 	go func() {
-		defer wg.Done()
 		if err := gs.run(ctx); err != nil {
 			log.Fatal(fmt.Errorf("server run error:%s", err.Error()))
 		}
 	}()
 
-	wg.Wait()
+	gs.WaitGroup.Wait()
 }
 
 func (gs *grpcServer) run(ctx context.Context) error {
@@ -153,16 +153,25 @@ func (gs *grpcServer) run(ctx context.Context) error {
 		return err
 	}
 
+	var node *discovery.Node
 	go func() {
+		defer gs.WaitGroup.Done()
 		select {
 		case <-ctx.Done():
-			logger.Info(logger.NewEntry().WithMessage(fmt.Sprintf("rpc server stop listen on: [%d]", gs.port)))
+			if gs.register != nil && node != nil {
+				if err := gs.register.Deregister(node); err != nil {
+					logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("node[%s]-[%s]-[%d] deregister error %s", node.Name, node.Host, node.Port, err.Error())))
+				} else {
+					logger.Info(logger.NewEntry().WithMessage(fmt.Sprintf("node[%s]-[%s]-[%d] success deregister", node.Name, node.Host, node.Port)))
+				}
+			}
 			gs.gSrv.GracefulStop()
+			logger.Info(logger.NewEntry().WithMessage(fmt.Sprintf("rpc server stop listen on: [%d]", gs.port)))
 		}
 	}()
 
 	if gs.register != nil && gs.name != "" && gs.host != "" {
-		node := discovery.NewNode(gs.name, gs.host, gs.port, discovery.GRPC)
+		node = discovery.NewNode(gs.name, gs.host, gs.port, discovery.GRPC)
 		if err := gs.register.Register(node); err != nil {
 			return err
 		}
@@ -194,6 +203,7 @@ func (gs *grpcServer) runGateway(ctx context.Context) error {
 	}
 
 	go func() {
+		defer gs.WaitGroup.Done()
 		<-ctx.Done()
 		logger.Info(logger.NewEntry().WithMessage(fmt.Sprintf("rpc server gateway stop listen on: [%d]", gs.proxyPort)))
 

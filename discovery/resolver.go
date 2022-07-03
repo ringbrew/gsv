@@ -56,7 +56,7 @@ func (rb *ResolverBuilder) Build(target resolver.Target, cc resolver.ClientConn,
 		}()
 		ticker := time.NewTicker(time.Minute)
 		for range ticker.C {
-			if nl, err := rb.nd.Node(target.URL.Path, GRPC); err == nil {
+			if nl, err := rb.nd.Node(endpoint, GRPC); err == nil {
 				eventChan <- NodeEvent{
 					Event: NodeEventSync,
 					Node:  nl,
@@ -100,16 +100,19 @@ func (r *gsvResolver) watch() {
 	for event := range r.eventChan {
 		switch event.Event {
 		case NodeEventAdd:
+			logger.Debug(logger.NewEntry().WithMessage(fmt.Sprintf("receive add event: %v", event)))
 			for _, node := range event.Node {
 				r.cache[node.Id] = node
 			}
 			updateState()
 		case NodeEventRemove:
+			logger.Debug(logger.NewEntry().WithMessage(fmt.Sprintf("receive remove event: %v", event)))
 			for _, node := range event.Node {
 				delete(r.cache, node.Id)
 			}
 			updateState()
 		case NodeEventSync:
+			logger.Debug(logger.NewEntry().WithMessage(fmt.Sprintf("receive sync event: %v", event)))
 			r.cache = make(map[string]*Node)
 			for _, node := range event.Node {
 				r.cache[node.Id] = node
