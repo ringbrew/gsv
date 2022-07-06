@@ -99,26 +99,26 @@ func (s *httpServer) RunDoc(ctx context.Context) {
 				hds.Api = append(hds.Api, hda)
 			}
 			result = append(result, hds)
-
-			b := make([]byte, 0, 1024)
-			buf := bytes.NewBuffer(b)
-			tmpl, err := template.New("apiDocTmpl").Parse(apiDocTmpl)
-			if err != nil {
-				logger.Error(logger.NewEntry(request.Context()).WithMessage(fmt.Sprintf("template parse error:%s", err.Error())))
-				writer.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-
-			if err := tmpl.Execute(buf, result); err != nil {
-				logger.Error(logger.NewEntry(request.Context()).WithMessage(fmt.Sprintf("template parse error:%s", err.Error())))
-				writer.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-
-			writer.Header().Set("Content-Type", "application/octet-stream")
-			writer.Header().Set("Content-Disposition", fmt.Sprintf("attachment;filename=http_api.md"))
-			writer.Write(buf.Bytes())
 		}
+
+		b := make([]byte, 0, 1024)
+		buf := bytes.NewBuffer(b)
+		tmpl, err := template.New("apiDocTmpl").Parse(apiDocTmpl)
+		if err != nil {
+			logger.Error(logger.NewEntry(request.Context()).WithMessage(fmt.Sprintf("template parse error:%s", err.Error())))
+			writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		if err := tmpl.Execute(buf, result); err != nil {
+			logger.Error(logger.NewEntry(request.Context()).WithMessage(fmt.Sprintf("template parse error:%s", err.Error())))
+			writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		writer.Header().Set("Content-Type", "application/octet-stream")
+		writer.Header().Set("Content-Disposition", fmt.Sprintf("attachment;filename=http_api.md"))
+		writer.Write(buf.Bytes())
 	})
 
 	http.ListenAndServe(":9090", nil)
