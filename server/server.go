@@ -9,6 +9,7 @@ import (
 	"github.com/urfave/negroni"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/stats"
+	"runtime/debug"
 )
 
 type Type string
@@ -44,13 +45,13 @@ func Classic() Option {
 		ProxyPort: 3001,
 		StreamInterceptors: []grpc.StreamServerInterceptor{
 			RecoverStreamInterceptor(func(panic interface{}) {
-				logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server panic:[%v]", panic)))
+				logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server panic:[%v] with stack[%s]", panic, string(debug.Stack()))))
 			}),
 			TraceStreamServerInterceptor(),
 		},
 		UnaryInterceptors: []grpc.UnaryServerInterceptor{
 			RecoverUnaryInterceptor(func(panic interface{}) {
-				logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server panic:[%v]", panic)))
+				logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server panic:[%v] with stack[%s]", panic, string(debug.Stack()))))
 			}),
 			TraceUnaryInterceptor(),
 			LogUnaryInterceptor(),
