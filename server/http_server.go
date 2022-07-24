@@ -10,6 +10,7 @@ import (
 	"github.com/urfave/negroni"
 	"net/http"
 	"reflect"
+	"strings"
 	"text/template"
 )
 
@@ -67,8 +68,27 @@ func (s *httpServer) Register(svc service.Service) error {
 
 func (s *httpServer) RunDoc(ctx context.Context) {
 	http.HandleFunc("/http/service/api/docs", func(writer http.ResponseWriter, request *http.Request) {
+		var nameList []string
+
+		if serviceName := request.FormValue("name"); serviceName != "" {
+			nameList = strings.Split(serviceName, ",")
+		}
+
+		in := func(name string, nameList []string) bool {
+			for _, v := range nameList {
+				if v == name {
+					return true
+				}
+			}
+			return false
+		}
+
 		result := make([]HttpDocService, 0, len(s.serviceList))
 		for i := range s.serviceList {
+			if len(nameList) > 0 && !in(s.serviceList[i].Name(), nameList) {
+				continue
+			}
+
 			hds := HttpDocService{
 				Name: s.serviceList[i].Remark(),
 			}
