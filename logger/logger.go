@@ -2,6 +2,7 @@ package logger
 
 import (
 	"context"
+	"fmt"
 	"github.com/ringbrew/gsv/service"
 )
 
@@ -51,6 +52,11 @@ func NewEntry(ctx ...context.Context) *LogEntry {
 
 func (entry *LogEntry) WithMessage(msg string) *LogEntry {
 	entry.Message = msg
+	return entry
+}
+
+func (entry *LogEntry) WithMessageF(format string, a ...interface{}) *LogEntry {
+	entry.Message = fmt.Sprintf(format, a...)
 	return entry
 }
 
