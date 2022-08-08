@@ -100,19 +100,19 @@ func (r *gsvResolver) watch() {
 	for event := range r.eventChan {
 		switch event.Event {
 		case NodeEventAdd:
-			logger.Debug(logger.NewEntry().WithMessage(fmt.Sprintf("receive add event: %v", event)))
+			logger.Debug(logger.NewEntry().WithMessage(fmt.Sprintf("target[%s] receive add event: %v", r.target.URL.String(), event)))
 			for _, node := range event.Node {
 				r.cache[node.Id] = node
 			}
 			updateState()
 		case NodeEventRemove:
-			logger.Debug(logger.NewEntry().WithMessage(fmt.Sprintf("receive remove event: %v", event)))
+			logger.Debug(logger.NewEntry().WithMessage(fmt.Sprintf("target[%s] receive remove event: %v", r.target.URL.String(), event)))
 			for _, node := range event.Node {
 				delete(r.cache, node.Id)
 			}
 			updateState()
 		case NodeEventSync:
-			logger.Debug(logger.NewEntry().WithMessage(fmt.Sprintf("receive sync event: %v", event)))
+			logger.Debug(logger.NewEntry().WithMessage(fmt.Sprintf("target[%s] receive sync event: %v", r.target.URL.String(), event)))
 			r.cache = make(map[string]*Node)
 			for _, node := range event.Node {
 				r.cache[node.Id] = node
