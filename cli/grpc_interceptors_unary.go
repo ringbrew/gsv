@@ -30,7 +30,7 @@ func LogUnaryInterceptor() grpc.UnaryClientInterceptor {
 		start := time.Now()
 		err := invoker(ctx, method, req, reply, cc, callOpts...)
 		if err != nil {
-			logger.Error(logger.NewEntry(ctx).WithMessage(fmt.Sprintf("call service[%s]-method[%s] error[%s]", cc.Target(), method, err.Error())))
+			logger.Error(logger.NewEntry(ctx).WithMessage(fmt.Sprintf("call service[%s]-method[%s] req[%v], error[%s]", cc.Target(), method, req, err.Error())))
 		} else {
 			elapsed := time.Since(start)
 			entry := logger.NewEntry(ctx)
