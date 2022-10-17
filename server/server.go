@@ -35,8 +35,7 @@ type Option struct {
 	StatHandler        stats.Handler
 
 	//http option
-	HttpMiddleware  []negroni.Handler
-	EnableDocServer bool
+	HttpMiddleware []negroni.Handler
 }
 
 func Classic() Option {
@@ -70,6 +69,7 @@ type SetNamer interface {
 type Server interface {
 	Register(service service.Service) error
 	Run(ctx context.Context)
+	GetDoc() []DocService
 }
 
 func NewServer(t Type, opts ...*Option) Server {

@@ -5,12 +5,12 @@ import (
 	"strings"
 )
 
-type HttpDocService struct {
+type DocService struct {
 	Name string
-	Api  []HttpDocApi
+	Api  []DocApi
 }
 
-type HttpDocApi struct {
+type DocApi struct {
 	Name        string
 	Path        string
 	Method      string
@@ -34,6 +34,7 @@ func structInfo(input reflect.Type) []Struct {
 	list := make([]reflect.Type, 0, 1)
 	list = append(list, input)
 	result := make([]Struct, 0, 1)
+	set := make(map[string]struct{})
 	for len(list) > 0 {
 		process := append([]reflect.Type{}, list...)
 		list = make([]reflect.Type, 0)
@@ -51,6 +52,13 @@ func structInfo(input reflect.Type) []Struct {
 			if t.Kind() != reflect.Struct {
 				continue
 			}
+
+			if _, exist := set[t.Name()]; !exist {
+				set[t.Name()] = struct{}{}
+			} else {
+				continue
+			}
+
 			curr := Struct{
 				Name: t.Name(),
 			}
@@ -99,7 +107,7 @@ func structInfo(input reflect.Type) []Struct {
 	return result
 }
 
-const apiDocTmpl = `
+const ApiDocMarkdownTmpl = `
 # 接口文档
 
 {{range $i,$d := .}}

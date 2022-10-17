@@ -249,3 +249,7 @@ func (gs *grpcServer) findListenOn() string {
 
 	return localAddr.IP.String()
 }
+
+func (gs *grpcServer) GetDoc() []DocService {
+	return nil
+}
