@@ -69,7 +69,7 @@ type SetNamer interface {
 type Server interface {
 	Register(service service.Service) error
 	Run(ctx context.Context)
-	GetDoc() []DocService
+	Doc() []DocService
 }
 
 func NewServer(t Type, opts ...*Option) Server {

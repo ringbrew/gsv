@@ -250,6 +250,6 @@ func (gs *grpcServer) findListenOn() string {
 	return localAddr.IP.String()
 }
 
-func (gs *grpcServer) GetDoc() []DocService {
+func (gs *grpcServer) Doc() []DocService {
 	return nil
 }

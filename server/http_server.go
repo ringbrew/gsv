@@ -92,7 +92,7 @@ func (s *httpServer) Run(ctx context.Context) {
 	}
 }
 
-func (s *httpServer) GetDoc() []DocService {
+func (s *httpServer) Doc() []DocService {
 	result := make([]DocService, 0, len(s.serviceList))
 	for i := range s.serviceList {
 		hds := DocService{
