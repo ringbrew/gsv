@@ -27,9 +27,10 @@ type Struct struct {
 }
 
 type Field struct {
-	Name   string
-	Type   string
-	Remark string
+	Name     string
+	Type     string
+	Remark   string
+	Required bool
 }
 
 func structInfo(input reflect.Type) []Struct {
@@ -96,6 +97,10 @@ func structInfo(input reflect.Type) []Struct {
 					Name:   name,
 					Type:   fieldInfo.Type.String(),
 					Remark: fieldInfo.Tag.Get("remark"),
+				}
+				validate := fieldInfo.Tag.Get("validate")
+				if strings.Contains(validate, "required") {
+					f.Required = true
 				}
 
 				curr.Field = append(curr.Field, f)
