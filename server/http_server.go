@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/ringbrew/gsv/logger"
@@ -115,11 +116,13 @@ func (s *httpServer) Doc() []DocService {
 			if dhr.Meta.Request != nil {
 				apiReq := structInfo(reflect.TypeOf(dhr.Meta.Request))
 				hda.Request = append(hda.Request, apiReq...)
+				hda.RequestExample = s.newExample(dhr.Meta.Request)
 			}
 
 			if dhr.Meta.Response != nil {
 				apiResp := structInfo(reflect.TypeOf(dhr.Meta.Response))
 				hda.Response = append(hda.Response, apiResp...)
+				hda.ResponseExample = s.newExample(dhr.Meta.Response)
 			}
 
 			hds.Api = append(hds.Api, hda)
@@ -128,4 +131,32 @@ func (s *httpServer) Doc() []DocService {
 	}
 
 	return result
+}
+
+func (s *httpServer) newExample(object interface{}) string {
+	var example string
+	rt := reflect.TypeOf(object)
+	if rt.Kind() == reflect.Ptr {
+		rt = rt.Elem() // use Elem to get the pointed-to-type
+	}
+
+	if rt.Kind() == reflect.Slice {
+		sv := reflect.New(reflect.TypeOf([]interface{}{})).Elem()
+
+		objectType := rt.Elem() // use Elem to get type of slice's element
+
+		if objectType.Kind() == reflect.Ptr {
+			objectType = objectType.Elem()
+		}
+
+		ssv := reflect.Append(sv, reflect.New(objectType))
+
+		e, _ := json.MarshalIndent(ssv.Interface(), "", "	")
+		example = string(e)
+	} else {
+		e, _ := json.MarshalIndent(reflect.New(rt).Interface(), "", "	")
+		example = string(e)
+	}
+
+	return example
 }

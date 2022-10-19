@@ -11,12 +11,14 @@ type DocService struct {
 }
 
 type DocApi struct {
-	Name        string
-	Path        string
-	Method      string
-	ContentType string
-	Request     []Struct
-	Response    []Struct
+	Name            string
+	Path            string
+	Method          string
+	ContentType     string
+	Request         []Struct
+	Response        []Struct
+	RequestExample  string
+	ResponseExample string
 }
 
 type Struct struct {
@@ -106,35 +108,3 @@ func structInfo(input reflect.Type) []Struct {
 
 	return result
 }
-
-const ApiDocMarkdownTmpl = `
-# 接口文档
-
-{{range $i,$d := .}}
-## 模块：{{$d.Name}}
-{{range $ii,$dd := $d.Api}}
-### 接口：{{$dd.Name}}
-
-路径：{{$dd.Path}}
-
-请求方式：{{$dd.Method}}
-
-{{range $iii,$ddd := $dd.Request}}
-请求参数：{{$ddd.Name}}
-| 数据项   | 名称         | 类型        | 必填 | 说明                           |
-|-------|------------|-----------| -------- | -------------------------------------- |
-{{range $fi,$dddd := $ddd.Field}}|{{$dddd.Remark}}|{{$dddd.Name}}|{{$dddd.Type}}| | |
-{{end}}
-{{end}}
-
-{{range $iii,$ddd := $dd.Response}}
-返回参数：{{$ddd.Name}}
-| 数据项   | 名称         | 类型        | 必填 | 说明                           |
-|-------|------------|-----------| -------- | -------------------------------------- |
-{{range $fi,$dddd := $ddd.Field}}|{{$dddd.Remark}}|{{$dddd.Name}}|{{$dddd.Type}}| | |
-{{end}}
-{{end}}
-
-{{end}}
-{{end}}
-`
