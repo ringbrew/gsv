@@ -9,7 +9,6 @@ import (
 	"github.com/ringbrew/gsv/discovery"
 	"github.com/ringbrew/gsv/logger"
 	"github.com/ringbrew/gsv/service"
-	"github.com/ringbrew/gsv/tracex"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/stats"
@@ -29,7 +28,6 @@ type grpcServer struct {
 	unaryInterceptors  []grpc.UnaryServerInterceptor
 	statHandler        stats.Handler
 	register           discovery.NodeRegister
-	traceOption        tracex.Option
 
 	enableGateway bool
 	gSrvGateway   *http.Server
