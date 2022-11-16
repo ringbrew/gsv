@@ -16,6 +16,10 @@ func SetLevel(ll Level) {
 	l.SetLevel(ll)
 }
 
+func GetLevel() Level {
+	return l.GetLevel()
+}
+
 type Level uint8
 
 const (
@@ -67,6 +71,7 @@ func (entry *LogEntry) WithExtra(key string, value interface{}) *LogEntry {
 
 type Logger interface {
 	SetLevel(level Level)
+	GetLevel() Level
 	Debug(entry *LogEntry)
 	Info(entry *LogEntry)
 	Warn(entry *LogEntry)
