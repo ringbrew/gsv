@@ -38,10 +38,7 @@ func LogUnaryInterceptor() grpc.UnaryClientInterceptor {
 			entry.WithExtra("duration", elapsed.String())
 			entry.WithExtra("method", method)
 			entry.WithExtra("req", req)
-
-			if logger.GetLevel() == logger.LevelDebug {
-				entry.WithExtra("resp", reply)
-			}
+			entry.WithExtra("resp", reply)
 
 			if elapsed > slowThreshold {
 				logger.Warn(entry.WithMessage("rpc call slow"))
