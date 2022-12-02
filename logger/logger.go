@@ -10,6 +10,9 @@ var l Logger
 
 func SetLogger(ll Logger) {
 	l = ll
+
+	// 默认日志级别info
+	l.SetLevel(LevelInfo)
 }
 
 func SetLevel(ll Level) {
