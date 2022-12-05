@@ -60,6 +60,7 @@ type HttpMeta struct {
 	Request     interface{}
 	Response    interface{}
 	Remark      string
+	Extra       map[string]interface{}
 }
 
 type HttpRouteCollector []HttpRoute
