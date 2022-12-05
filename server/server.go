@@ -66,6 +66,10 @@ type SetNamer interface {
 	SetName(name string)
 }
 
+type ServicePatcher interface {
+	Patch(svc service.Service) error
+}
+
 type Server interface {
 	Register(service service.Service) error
 	Run(ctx context.Context)

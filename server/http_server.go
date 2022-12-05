@@ -51,12 +51,23 @@ func newHttpServer(opts ...Option) *httpServer {
 func (s *httpServer) Register(svc service.Service) error {
 	s.serviceList = append(s.serviceList, svc)
 	desc := svc.Description()
+	middlewares := s.srv.Handlers()
+
 	for ii := range desc.HttpRoute {
 		routeInfo := desc.HttpRoute[ii]
 		if routeInfo.Method == service.MethodAll {
 			s.router.HandleFunc(routeInfo.Path, routeInfo.Handler)
 		} else {
 			s.router.HandleFunc(routeInfo.Path, routeInfo.Handler).Methods(routeInfo.Method)
+		}
+	}
+
+	for i := range middlewares {
+		m := middlewares[i]
+		if patcher, ok := m.(ServicePatcher); ok {
+			if err := patcher.Patch(svc); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

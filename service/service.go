@@ -60,6 +60,7 @@ type HttpMeta struct {
 	Request     interface{}
 	Response    interface{}
 	Remark      string
+	Public      bool
 	Extra       map[string]interface{}
 }
 
