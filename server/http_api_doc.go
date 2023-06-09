@@ -24,14 +24,35 @@ type DocApi struct {
 type Struct struct {
 	Name  string
 	Field []Field
+	Root  bool
 }
 
 type Field struct {
 	Name      string
-	Type      string
+	Type      FieldType
 	Remark    string
 	Required  bool
 	Anonymous bool
+}
+
+type FieldType struct {
+	Category FieldTypeCategory
+	Name     string
+	Items    *FieldType
+}
+
+type FieldTypeCategory int
+
+const (
+	FieldTypeCategoryInvalid FieldTypeCategory = iota
+	FieldTypeCategoryBasic
+	FieldTypeCategoryObject
+	FieldTypeCategoryArray
+)
+
+type TypeItem struct {
+	Name string
+	Type string
 }
 
 func structInfo(input reflect.Type) []Struct {
@@ -39,20 +60,48 @@ func structInfo(input reflect.Type) []Struct {
 	list = append(list, input)
 	result := make([]Struct, 0, 1)
 	set := make(map[string]struct{})
+
+	realT := func(rt reflect.Type) reflect.Type {
+		for rt.Kind() == reflect.Ptr || rt.Kind() == reflect.Slice {
+			rt = rt.Elem() // use Elem to get the pointed-to-type
+		}
+		return rt
+	}
+
+	var realFieldType func(rt reflect.Type) FieldType
+	realFieldType = func(rt reflect.Type) FieldType {
+		ft := FieldType{}
+
+		for rt.Kind() == reflect.Ptr || rt.Kind() == reflect.Slice {
+			if rt.Kind() == reflect.Slice {
+				ft.Category = FieldTypeCategoryArray
+				ft.Name = "array"
+				rt = rt.Elem() // use Elem to get the pointed-to-type
+				embed := realFieldType(rt)
+				ft.Items = &embed
+			} else {
+				rt = rt.Elem()
+			}
+		}
+
+		if ft.Category != FieldTypeCategoryArray {
+			if rt.Kind() == reflect.Struct {
+				ft.Category = FieldTypeCategoryObject
+				ft.Name = rt.Name()
+			} else {
+				ft.Category = FieldTypeCategoryBasic
+				ft.Name = rt.Name()
+			}
+		}
+
+		return ft
+	}
+
 	for len(list) > 0 {
 		process := append([]reflect.Type{}, list...)
 		list = make([]reflect.Type, 0)
 
 		for _, t := range process {
-			if t.Kind() == reflect.Ptr {
-				t = t.Elem() // use Elem to get the pointed-to-type
-			}
-			if t.Kind() == reflect.Slice {
-				t = t.Elem() // use Elem to get type of slice's element
-			}
-			if t.Kind() == reflect.Ptr { // handle input of type like []*StructType
-				t = t.Elem() // use Elem to get the pointed-to-type
-			}
 			if t.Kind() != reflect.Struct {
 				continue
 			}
@@ -73,6 +122,7 @@ func structInfo(input reflect.Type) []Struct {
 
 				if len(fieldInfo.Name) > 0 {
 					r := []rune(fieldInfo.Name)
+
 					s := string(r[0])
 
 					if strings.ToLower(s) == s {
@@ -80,12 +130,8 @@ func structInfo(input reflect.Type) []Struct {
 					}
 				}
 
-				if fieldInfo.Type.Kind() == reflect.Struct {
-					list = append(list, fieldInfo.Type)
-				} else if fieldInfo.Type.Kind() == reflect.Ptr {
-					list = append(list, fieldInfo.Type.Elem())
-				} else if fieldInfo.Type.Kind() == reflect.Slice {
-					list = append(list, fieldInfo.Type.Elem())
+				if fieldInfo.Type.Kind() == reflect.Struct || fieldInfo.Type.Kind() == reflect.Ptr || fieldInfo.Type.Kind() == reflect.Slice {
+					list = append(list, realT(fieldInfo.Type))
 				}
 
 				name := fieldInfo.Name
@@ -96,11 +142,13 @@ func structInfo(input reflect.Type) []Struct {
 
 				f := Field{
 					Name:      name,
-					Type:      fieldInfo.Type.String(),
+					Type:      realFieldType(fieldInfo.Type),
 					Remark:    fieldInfo.Tag.Get("remark"),
 					Anonymous: fieldInfo.Anonymous,
 				}
+
 				validate := fieldInfo.Tag.Get("validate")
+
 				if strings.Contains(validate, "required") {
 					f.Required = true
 				}
@@ -111,6 +159,10 @@ func structInfo(input reflect.Type) []Struct {
 			result = append(result, curr)
 		}
 
+	}
+
+	if len(result) > 0 {
+		result[0].Root = true
 	}
 
 	return result
