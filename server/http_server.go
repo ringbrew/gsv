@@ -108,6 +108,7 @@ func (s *httpServer) Doc() []DocService {
 	result := make([]DocService, 0, len(s.serviceList))
 	for i := range s.serviceList {
 		hds := DocService{
+			Key:  s.serviceList[i].Name(),
 			Name: s.serviceList[i].Remark(),
 		}
 

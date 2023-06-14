@@ -6,6 +6,7 @@ import (
 )
 
 type DocService struct {
+	Key  string
 	Name string
 	Api  []DocApi
 }
