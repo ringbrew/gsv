@@ -11,8 +11,11 @@ type A struct {
 }
 
 type B struct {
-	C string
+	C C
+}
+type C struct {
 	D string
+	E int
 }
 
 func TestDoc(t *testing.T) {

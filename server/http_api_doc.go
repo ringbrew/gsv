@@ -60,6 +60,8 @@ func structInfo(input reflect.Type) []Struct {
 	list := make([]reflect.Type, 0, 1)
 	list = append(list, input)
 	result := make([]Struct, 0, 1)
+	structLink := make(map[string]int)
+
 	set := make(map[string]struct{})
 
 	realT := func(rt reflect.Type) reflect.Type {
@@ -100,6 +102,10 @@ func structInfo(input reflect.Type) []Struct {
 
 	for len(list) > 0 {
 		process := append([]reflect.Type{}, list...)
+		for i := range list {
+			structLink[list[i].Name()]++
+		}
+
 		list = make([]reflect.Type, 0)
 
 		for _, t := range process {
@@ -132,7 +138,8 @@ func structInfo(input reflect.Type) []Struct {
 				}
 
 				if fieldInfo.Type.Kind() == reflect.Struct || fieldInfo.Type.Kind() == reflect.Ptr || fieldInfo.Type.Kind() == reflect.Slice {
-					list = append(list, realT(fieldInfo.Type))
+					rt := realT(fieldInfo.Type)
+					list = append(list, rt)
 				}
 
 				name := fieldInfo.Name
@@ -162,9 +169,42 @@ func structInfo(input reflect.Type) []Struct {
 
 	}
 
+	// mark root.
 	if len(result) > 0 {
 		result[0].Root = true
 	}
 
-	return result
+	// process anonymous.
+	tMap := make(map[string]Struct)
+	for i := range result {
+		tMap[result[i].Name] = result[i]
+	}
+	var extraField func(input Struct) []Field
+	extraField = func(input Struct) []Field {
+		rs := make([]Field, 0)
+		for i := range input.Field {
+			if input.Field[i].Anonymous {
+				si := tMap[input.Field[i].Type.Name]
+				structLink[input.Field[i].Type.Name]--
+				asf := extraField(si)
+				rs = append(rs, asf...)
+			} else {
+				rs = append(rs, input.Field[i])
+			}
+		}
+		return rs
+	}
+
+	for i := range result {
+		result[i].Field = extraField(result[i])
+	}
+
+	final := make([]Struct, 0, len(result))
+	for i := range result {
+		if structLink[result[i].Name] > 0 {
+			final = append(final, result[i])
+		}
+	}
+
+	return final
 }
