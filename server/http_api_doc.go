@@ -20,6 +20,7 @@ type DocApi struct {
 	Response        []Struct
 	RequestExample  string
 	ResponseExample string
+	HandleName      string
 }
 
 type Struct struct {

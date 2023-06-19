@@ -10,6 +10,8 @@ import (
 	"github.com/urfave/negroni"
 	"net/http"
 	"reflect"
+	"regexp"
+	"runtime"
 )
 
 type httpServer struct {
@@ -118,11 +120,29 @@ func (s *httpServer) Doc() []DocService {
 		desc := s.serviceList[i].Description()
 		for ii := range desc.HttpRoute {
 			dhr := desc.HttpRoute[ii]
+
+			funcPtr := reflect.ValueOf(dhr.Handler).Pointer()
+			funcName := runtime.FuncForPC(funcPtr).Name()
+
+			r, err := regexp.Compile(`(\w+)-fm`)
+			if err != nil {
+				logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("Doc compile error: %v", err)))
+			}
+
+			res := r.FindStringSubmatch(funcName)
+			var handleName string
+			if len(res) != 2 {
+				logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("Doc parse func name error: %v", res)))
+			} else {
+				handleName = res[1]
+			}
+
 			hda := DocApi{
 				Name:        dhr.Meta.Remark,
 				Path:        dhr.Path,
 				Method:      dhr.Method,
 				ContentType: dhr.Meta.ContentType,
+				HandleName:  handleName,
 			}
 
 			if dhr.Meta.Request != nil {
