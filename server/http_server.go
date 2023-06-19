@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"strings"
 )
 
 type httpServer struct {
@@ -124,17 +125,18 @@ func (s *httpServer) Doc() []DocService {
 			funcPtr := reflect.ValueOf(dhr.Handler).Pointer()
 			funcName := runtime.FuncForPC(funcPtr).Name()
 
-			r, err := regexp.Compile(`(\w+)-fm`)
-			if err != nil {
-				logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("Doc compile error: %v", err)))
-			}
-
+			r := regexp.MustCompile(`\(\*(\w*Handler)\).(\w+)-fm`)
 			res := r.FindStringSubmatch(funcName)
-			var handleName string
-			if len(res) != 2 {
-				logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("Doc parse func name error: %v", res)))
+
+			var module string
+			var action string
+			if len(res) != 3 {
+				logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("Doc compile error: %v", res)))
 			} else {
-				handleName = res[1]
+				if res[1] != "Handler" {
+					module = strings.ReplaceAll(res[1], "Handler", "")
+				}
+				action = res[2]
 			}
 
 			hda := DocApi{
@@ -142,7 +144,8 @@ func (s *httpServer) Doc() []DocService {
 				Path:        dhr.Path,
 				Method:      dhr.Method,
 				ContentType: dhr.Meta.ContentType,
-				HandleName:  handleName,
+				Module:      module,
+				Action:      action,
 			}
 
 			if dhr.Meta.Request != nil {
