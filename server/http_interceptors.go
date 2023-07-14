@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bufio"
 	"fmt"
 	"github.com/ringbrew/gsv/logger"
 	"github.com/ringbrew/gsv/service"
@@ -10,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	"go.opentelemetry.io/otel/trace"
+	"net"
 	"net/http"
 	"runtime"
 	"runtime/debug"
@@ -17,7 +19,7 @@ import (
 )
 
 /*
-	HttpRecovery fork from negroni
+HttpRecovery fork from negroni
 */
 const nilRequestMessage = "Request is nil"
 const panicText = "PANIC: %s"
@@ -270,4 +272,12 @@ func (rw *responseDumpWriter) Write(b []byte) (int, error) {
 
 func (rw *responseDumpWriter) Dump() []byte {
 	return rw.dump
+}
+
+func (rw *responseDumpWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hijacker, ok := rw.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, fmt.Errorf("the ResponseWriter doesn't support the Hijacker interface")
+	}
+	return hijacker.Hijack()
 }
