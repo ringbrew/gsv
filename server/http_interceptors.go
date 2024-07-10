@@ -1,17 +1,14 @@
 package server
 
 import (
-	"bufio"
 	"fmt"
 	"github.com/ringbrew/gsv/logger"
 	"github.com/ringbrew/gsv/service"
 	"github.com/ringbrew/gsv/tracex"
-	"github.com/urfave/negroni"
 	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/propagation"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	"go.opentelemetry.io/otel/trace"
-	"net"
 	"net/http"
 	"runtime"
 	"runtime/debug"
@@ -51,7 +48,7 @@ func (p *PanicInformation) RequestDescription() string {
 	return fmt.Sprintf("%s %s%s", p.Request.Method, p.Request.URL.Path, queryOutput)
 }
 
-// HttpRecovery is a Negroni middleware that recovers from any panics and writes a 500 if there was one.
+// HttpRecovery is a middleware that recovers from any panics and writes a 500 if there was one.
 type HttpRecovery struct {
 	PrintStack       bool
 	PanicHandlerFunc func(*PanicInformation)
@@ -121,7 +118,7 @@ func (rec *HttpRecovery) ServeHTTP(rw http.ResponseWriter, r *http.Request, next
 		}
 	}()
 
-	rw = NewHttpResponseDumpWriter(rw)
+	rw = NewResponseWriter(rw)
 
 	next(rw, r)
 }
@@ -146,7 +143,7 @@ func (hl *HttpLogger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 	status := 0
 	size := 0
 
-	res, ok := rw.(HttpResponseWriter)
+	res, ok := rw.(ResponseWriter)
 	if ok {
 		status = res.Status()
 		size = res.Size()
@@ -221,7 +218,7 @@ func (ht *HttpTracer) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 	next(rw, r)
 
 	status := 0
-	if res, ok := rw.(negroni.ResponseWriter); ok {
+	if res, ok := rw.(ResponseWriter); ok {
 		status = res.Status()
 	}
 
@@ -230,54 +227,4 @@ func (ht *HttpTracer) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 	span.SetAttributes(attrs...)
 	span.SetStatus(spanStatus, spanMessage)
 
-}
-
-func NewHttpResponseDumpWriter(rw http.ResponseWriter) http.ResponseWriter {
-	if nrw, ok := rw.(negroni.ResponseWriter); !ok {
-		return rw
-	} else {
-		srw := &responseDumpWriter{
-			ResponseWriter: nrw,
-		}
-		return srw
-	}
-}
-
-type responseDumpWriter struct {
-	negroni.ResponseWriter
-	status  int
-	success bool
-	dump    []byte
-}
-
-func (rw *responseDumpWriter) WriteHeader(s int) {
-	rw.status = s
-	if s >= http.StatusBadRequest {
-		rw.success = false
-	}
-	rw.ResponseWriter.WriteHeader(s)
-}
-
-func (rw *responseDumpWriter) Write(b []byte) (int, error) {
-	if !rw.Written() {
-		// The status will be StatusOK if WriteHeader has not been called yet
-		rw.WriteHeader(http.StatusOK)
-	}
-
-	rw.dump = append(rw.dump, b...)
-
-	size, err := rw.ResponseWriter.Write(b)
-	return size, err
-}
-
-func (rw *responseDumpWriter) Dump() []byte {
-	return rw.dump
-}
-
-func (rw *responseDumpWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	hijacker, ok := rw.ResponseWriter.(http.Hijacker)
-	if !ok {
-		return nil, nil, fmt.Errorf("the ResponseWriter doesn't support the Hijacker interface")
-	}
-	return hijacker.Hijack()
 }
