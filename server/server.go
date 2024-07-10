@@ -6,7 +6,6 @@ import (
 	"github.com/ringbrew/gsv/discovery"
 	"github.com/ringbrew/gsv/logger"
 	"github.com/ringbrew/gsv/service"
-	"github.com/urfave/negroni"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/stats"
 	"runtime/debug"
@@ -35,7 +34,8 @@ type Option struct {
 	StatHandler        stats.Handler
 
 	//http option
-	HttpMiddleware []negroni.Handler
+	HttpMiddleware []Handler
+	HttpOption     HttpOption
 }
 
 func Classic() Option {
@@ -55,19 +55,19 @@ func Classic() Option {
 			TraceUnaryInterceptor(),
 			LogUnaryInterceptor(),
 		},
-		HttpMiddleware: []negroni.Handler{
+		HttpMiddleware: []Handler{
 			NewHttpRecovery(),
 			NewHttpTracer(),
 			NewHttpLogger()},
 	}
 }
 
-type SetNamer interface {
-	SetName(name string)
-}
-
 type ServicePatcher interface {
 	Patch(svc service.Service) error
+}
+
+type GetKeyer interface {
+	GetKey() string
 }
 
 type Server interface {

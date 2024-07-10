@@ -7,7 +7,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/ringbrew/gsv/logger"
 	"github.com/ringbrew/gsv/service"
-	"github.com/urfave/negroni"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -18,10 +17,10 @@ import (
 type httpServer struct {
 	host        string
 	port        int
-	router      *mux.Router      //需要验证身份的路由
-	srv         *negroni.Negroni //negroni服务器
-	certFile    string           //证书路径
-	keyFile     string           //证书路径
+	router      *mux.Router //路由器
+	srv         *Engine     //服务器
+	certFile    string      //证书路径
+	keyFile     string      //证书路径
 	serviceList []service.Service
 }
 
@@ -31,15 +30,16 @@ func newHttpServer(opts ...Option) *httpServer {
 		opt = opts[0]
 	}
 
-	s := negroni.New()
+	s := New()
+
+	if opt.Name != "" {
+		opt.HttpOption.LogOptions = append(opt.HttpOption.LogOptions, WithHttpLoggerName(opt.Name))
+		opt.HttpOption.TraceOptions = append(opt.HttpOption.TraceOptions, WithHttpTracerName(opt.Name))
+	}
 
 	for i := range opt.HttpMiddleware {
 		m := opt.HttpMiddleware[i]
-		if opt.Name != "" {
-			if sn, ok := m.(SetNamer); ok {
-				sn.SetName(opt.Name)
-			}
-		}
+		opt.HttpOption.Exec(m)
 		s.Use(m)
 	}
 

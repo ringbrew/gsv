@@ -1,20 +1,18 @@
 package server
 
 import (
-	"bufio"
 	"fmt"
 	"github.com/ringbrew/gsv/logger"
 	"github.com/ringbrew/gsv/service"
 	"github.com/ringbrew/gsv/tracex"
-	"github.com/urfave/negroni"
 	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/propagation"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	"go.opentelemetry.io/otel/trace"
-	"net"
 	"net/http"
 	"runtime"
 	"runtime/debug"
+	"sync"
 	"time"
 )
 
@@ -51,7 +49,9 @@ func (p *PanicInformation) RequestDescription() string {
 	return fmt.Sprintf("%s %s%s", p.Request.Method, p.Request.URL.Path, queryOutput)
 }
 
-// HttpRecovery is a Negroni middleware that recovers from any panics and writes a 500 if there was one.
+const HttpRecoveryKey = "HttpRecovery"
+
+// HttpRecovery is a middleware that recovers from any panics and writes a 500 if there was one.
 type HttpRecovery struct {
 	PrintStack       bool
 	PanicHandlerFunc func(*PanicInformation)
@@ -92,6 +92,10 @@ func (t *TextPanicFormatter) FormatPanicError(rw http.ResponseWriter, r *http.Re
 	fmt.Fprintf(rw, panicText, infos.RecoveredPanic)
 }
 
+func (rec *HttpRecovery) GetKey() string {
+	return HttpRecoveryKey
+}
+
 func (rec *HttpRecovery) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	defer func() {
 		if err := recover(); err != nil {
@@ -121,21 +125,63 @@ func (rec *HttpRecovery) ServeHTTP(rw http.ResponseWriter, r *http.Request, next
 		}
 	}()
 
-	rw = NewHttpResponseDumpWriter(rw)
+	rw = NewResponseWriter(rw)
 
 	next(rw, r)
 }
 
+type HttpLogFilter struct {
+	ignore map[string][]interface{}
+	sync.RWMutex
+}
+
+func (hlf *HttpLogFilter) SetIgnore(key string, value interface{}) {
+	hlf.Lock()
+	defer hlf.Unlock()
+	hlf.ignore[key] = append(hlf.ignore[key], value)
+}
+
+func (hlf *HttpLogFilter) Ignore(entry *logger.LogEntry) bool {
+	hlf.RLock()
+	defer hlf.RUnlock()
+	for k, v := range hlf.ignore {
+		if val, exist := entry.Extra[k]; exist {
+			for _, vv := range v {
+				if val == vv {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+const HttpLoggerKey = "HttpLogger"
+
 type HttpLogger struct {
 	Name string
+	f    *HttpLogFilter
 }
 
 func NewHttpLogger() *HttpLogger {
-	return &HttpLogger{}
+	return &HttpLogger{
+		f: &HttpLogFilter{
+			ignore: make(map[string][]interface{}),
+		},
+	}
 }
 
 func (hl *HttpLogger) SetName(name string) {
 	hl.Name = name
+}
+
+func (hl *HttpLogger) GetKey() string {
+	return HttpLoggerKey
+}
+
+func (hl *HttpLogger) SetIgnore(key string, value interface{}) {
+	hl.f.SetIgnore(key, value)
 }
 
 func (hl *HttpLogger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
@@ -146,7 +192,7 @@ func (hl *HttpLogger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 	status := 0
 	size := 0
 
-	res, ok := rw.(HttpResponseWriter)
+	res, ok := rw.(ResponseWriter)
 	if ok {
 		status = res.Status()
 		size = res.Size()
@@ -161,16 +207,16 @@ func (hl *HttpLogger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 		WithExtra("status", status).
 		WithExtra("size", size)
 
-	if hl.Name != "" {
-		entry = entry.WithExtra("name", hl.Name)
-	}
-
-	if status >= http.StatusBadRequest {
-		logger.Error(entry.WithMessage(string(res.Dump())))
-	} else {
-		logger.Info(entry.WithMessage("success"))
+	if !hl.f.Ignore(entry) {
+		if status >= http.StatusBadRequest {
+			logger.Error(entry.WithMessage(string(res.Dump())))
+		} else {
+			logger.Info(entry.WithMessage("success"))
+		}
 	}
 }
+
+const HttpTracerKey = "HttpTracer"
 
 type HttpTracer struct {
 	Name string
@@ -182,6 +228,10 @@ func NewHttpTracer() *HttpTracer {
 
 func (ht *HttpTracer) SetName(name string) {
 	ht.Name = name
+}
+
+func (ht *HttpTracer) GetKey() string {
+	return HttpTracerKey
 }
 
 func (ht *HttpTracer) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
@@ -221,7 +271,7 @@ func (ht *HttpTracer) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 	next(rw, r)
 
 	status := 0
-	if res, ok := rw.(negroni.ResponseWriter); ok {
+	if res, ok := rw.(ResponseWriter); ok {
 		status = res.Status()
 	}
 
@@ -229,55 +279,56 @@ func (ht *HttpTracer) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 	spanStatus, spanMessage := semconv.SpanStatusFromHTTPStatusCode(status)
 	span.SetAttributes(attrs...)
 	span.SetStatus(spanStatus, spanMessage)
-
 }
 
-func NewHttpResponseDumpWriter(rw http.ResponseWriter) http.ResponseWriter {
-	if nrw, ok := rw.(negroni.ResponseWriter); !ok {
-		return rw
+type HttpLogOption = func(l *HttpLogger)
+
+func WithHttpLoggerIgnore(key string, value interface{}) HttpLogOption {
+	return func(l *HttpLogger) {
+		l.SetIgnore(key, value)
+	}
+}
+
+func WithHttpLoggerName(name string) HttpLogOption {
+	return func(l *HttpLogger) {
+		l.SetName(name)
+	}
+}
+
+type HttpTraceOption = func(l *HttpTracer)
+
+func WithHttpTracerName(name string) HttpTraceOption {
+	return func(l *HttpTracer) {
+		l.SetName(name)
+	}
+}
+
+type HttpOption struct {
+	TraceOptions []HttpTraceOption
+	LogOptions   []HttpLogOption
+}
+
+func (ho HttpOption) Exec(handler Handler) {
+	if k, ok := handler.(GetKeyer); !ok {
+		return
 	} else {
-		srw := &responseDumpWriter{
-			ResponseWriter: nrw,
+		switch k.GetKey() {
+		case HttpLoggerKey:
+			if hlo, ok := handler.(*HttpLogger); !ok {
+				return
+			} else {
+				for i := range ho.LogOptions {
+					ho.LogOptions[i](hlo)
+				}
+			}
+		case HttpTracerKey:
+			if ht, ok := handler.(*HttpTracer); !ok {
+				return
+			} else {
+				for i := range ho.TraceOptions {
+					ho.TraceOptions[i](ht)
+				}
+			}
 		}
-		return srw
 	}
-}
-
-type responseDumpWriter struct {
-	negroni.ResponseWriter
-	status  int
-	success bool
-	dump    []byte
-}
-
-func (rw *responseDumpWriter) WriteHeader(s int) {
-	rw.status = s
-	if s >= http.StatusBadRequest {
-		rw.success = false
-	}
-	rw.ResponseWriter.WriteHeader(s)
-}
-
-func (rw *responseDumpWriter) Write(b []byte) (int, error) {
-	if !rw.Written() {
-		// The status will be StatusOK if WriteHeader has not been called yet
-		rw.WriteHeader(http.StatusOK)
-	}
-
-	rw.dump = append(rw.dump, b...)
-
-	size, err := rw.ResponseWriter.Write(b)
-	return size, err
-}
-
-func (rw *responseDumpWriter) Dump() []byte {
-	return rw.dump
-}
-
-func (rw *responseDumpWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	hijacker, ok := rw.ResponseWriter.(http.Hijacker)
-	if !ok {
-		return nil, nil, fmt.Errorf("the ResponseWriter doesn't support the Hijacker interface")
-	}
-	return hijacker.Hijack()
 }
