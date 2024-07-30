@@ -2,6 +2,7 @@ package tracex
 
 import (
 	"context"
+	"github.com/ringbrew/gsv/service"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/baggage"
@@ -172,4 +173,20 @@ func ParseFullMethod(fullMethod string) (string, []attribute.KeyValue) {
 		attrs = append(attrs, semconv.RPCMethodKey.String(method))
 	}
 	return name, attrs
+}
+
+func NewTraceSpanContext(ctx context.Context, spanName string) (context.Context, trace.Span) {
+	tracer := NewConfig().TracerProvider.Tracer(
+		InstrumentationName,
+		trace.WithInstrumentationVersion(SemVersion()),
+	)
+	ctx, span := tracer.Start(
+		ctx,
+		spanName,
+		trace.WithSpanKind(trace.SpanKindServer),
+	)
+	sc := span.SpanContext()
+	rpcCtx := NewServiceContext(sc.TraceID(), sc.SpanID())
+	ctx = service.NewContext(ctx, rpcCtx)
+	return ctx, span
 }
