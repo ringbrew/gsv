@@ -72,12 +72,12 @@ func newGrpcServer(opt Option) *grpcServer {
 	s.gSrv = grpc.NewServer(opts...)
 
 	if s.enableGateway {
-		jpo := &runtime.JSONPb{
+		m := runtime.NewServeMux(runtime.WithMarshalerOption("*", &runtime.JSONPb{
 			MarshalOptions: protojson.MarshalOptions{
-				UseEnumNumbers: true,
+				UseEnumNumbers:  true,
+				EmitUnpopulated: true,
 			},
-		}
-		m := runtime.NewServeMux(runtime.WithMarshalerOption("application/json", jpo))
+		}))
 		httpMux := http.NewServeMux()
 		httpMux.Handle("/", m)
 
