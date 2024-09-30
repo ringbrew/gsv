@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/stats"
+	"google.golang.org/protobuf/encoding/protojson"
 	"log"
 	"net"
 	"net/http"
@@ -71,7 +72,12 @@ func newGrpcServer(opt Option) *grpcServer {
 	s.gSrv = grpc.NewServer(opts...)
 
 	if s.enableGateway {
-		m := runtime.NewServeMux()
+		jpo := &runtime.JSONPb{
+			MarshalOptions: protojson.MarshalOptions{
+				UseEnumNumbers: true,
+			},
+		}
+		m := runtime.NewServeMux(runtime.WithMarshalerOption("application/json", jpo))
 		httpMux := http.NewServeMux()
 		httpMux.Handle("/", m)
 
