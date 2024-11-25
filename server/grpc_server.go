@@ -203,7 +203,7 @@ func (gs *grpcServer) run(ctx context.Context) error {
 
 func (gs *grpcServer) runGateway(ctx context.Context) error {
 	if gs.gSrvGateway == nil {
-		return nil
+		logger.Fatal(logger.NewEntry().WithMessage(fmt.Sprintf("gateway is nil")))
 	}
 
 	go func() {
