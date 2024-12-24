@@ -118,6 +118,17 @@ func HttpExtract(ctx context.Context, hc propagation.HeaderCarrier) (baggage.Bag
 	return baggage.FromContext(ctx), trace.SpanContextFromContext(ctx)
 }
 
+func TextInject(ctx context.Context, headers map[string]string) {
+	c := NewConfig()
+	c.Propagators.Inject(ctx, propagation.MapCarrier(headers))
+}
+
+func TextExtract(ctx context.Context, headers map[string]string) (baggage.Baggage, trace.SpanContext) {
+	c := NewConfig()
+	ctx = c.Propagators.Extract(ctx, propagation.MapCarrier(headers))
+	return baggage.FromContext(ctx), trace.SpanContextFromContext(ctx)
+}
+
 // SpanInfo returns a span name and all appropriate attributes from the gRPC
 // method and peer address.
 func SpanInfo(fullMethod, peerAddress string) (string, []attribute.KeyValue) {
