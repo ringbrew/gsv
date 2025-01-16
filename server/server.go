@@ -26,6 +26,7 @@ type Option struct {
 	ServerRegister discovery.NodeRegister
 	CertFile       string
 	KeyFile        string
+	NodeId         string
 
 	//grpc option.
 	EnableGrpcGateway  bool

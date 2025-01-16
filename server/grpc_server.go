@@ -24,6 +24,7 @@ type grpcServer struct {
 	host               string
 	port               int
 	proxyPort          int
+	nodeId             string
 	gSrv               *grpc.Server
 	streamInterceptors []grpc.StreamServerInterceptor
 	unaryInterceptors  []grpc.UnaryServerInterceptor
@@ -44,6 +45,7 @@ func newGrpcServer(opt Option) *grpcServer {
 		host:               opt.Host,
 		port:               opt.Port,
 		proxyPort:          opt.ProxyPort,
+		nodeId:             opt.NodeId,
 		streamInterceptors: opt.StreamInterceptors,
 		unaryInterceptors:  opt.UnaryInterceptors,
 		statHandler:        opt.StatHandler,
@@ -175,7 +177,7 @@ func (gs *grpcServer) run(ctx context.Context) error {
 	}()
 
 	if gs.register != nil && gs.name != "" && gs.host != "" {
-		node = discovery.NewNode(gs.name, gs.host, gs.port, discovery.GRPC)
+		node = discovery.NewNode(gs.name, gs.host, gs.port, discovery.GRPC, gs.nodeId)
 		if err := gs.register.Register(node); err != nil {
 			return err
 		}
@@ -217,7 +219,7 @@ func (gs *grpcServer) runGateway(ctx context.Context) error {
 	}()
 
 	if gs.register != nil && gs.name != "" && gs.host != "" {
-		node := discovery.NewNode(gs.name, gs.host, gs.proxyPort, discovery.HTTP)
+		node := discovery.NewNode(gs.name, gs.host, gs.proxyPort, discovery.HTTP, gs.nodeId)
 		if err := gs.register.Register(node); err != nil {
 			return err
 		}

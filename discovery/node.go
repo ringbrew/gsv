@@ -21,12 +21,19 @@ type Node struct {
 	Extra sync.Map `json:"-"`
 }
 
-func NewNode(name, host string, port int, t Type) *Node {
-	return &Node{
-		Id:   uuid.New().String(),
+func NewNode(name, host string, port int, t Type, id ...string) *Node {
+	n := &Node{
 		Name: name,
 		Host: host,
 		Port: port,
 		Type: t,
 	}
+
+	if len(id) > 0 && id[0] != "" {
+		n.Id = id[0]
+	} else {
+		n.Id = uuid.New().String()
+	}
+
+	return n
 }
