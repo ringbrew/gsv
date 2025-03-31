@@ -10,29 +10,31 @@ import (
 
 const SchemeName = "gsv"
 
-func Register(nd NodeDiscover) {
-	resolver.Register(NewResolverBuilder(nd))
+func Register(nd NodeDiscover, tag ...string) {
+	resolver.Register(NewResolverBuilder(nd, tag...))
 }
 
 type ResolverBuilder struct {
-	nd NodeDiscover
+	nd  NodeDiscover
+	Tag []string
 }
 
-func NewResolverBuilder(nd NodeDiscover) *ResolverBuilder {
+func NewResolverBuilder(nd NodeDiscover, tag ...string) *ResolverBuilder {
 	return &ResolverBuilder{
-		nd: nd,
+		nd:  nd,
+		Tag: tag,
 	}
 }
 
 func (rb *ResolverBuilder) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOptions) (resolver.Resolver, error) {
 	endpoint := strings.TrimLeft(target.URL.Path, "/")
 
-	eventChan, err := rb.nd.Watch(endpoint, GRPC)
+	eventChan, err := rb.nd.Watch(endpoint, GRPC, rb.Tag...)
 	if err != nil {
 		return nil, err
 	}
 
-	nodeList, err := rb.nd.Node(endpoint, GRPC)
+	nodeList, err := rb.nd.Node(endpoint, GRPC, rb.Tag...)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +58,7 @@ func (rb *ResolverBuilder) Build(target resolver.Target, cc resolver.ClientConn,
 		}()
 		ticker := time.NewTicker(time.Minute)
 		for range ticker.C {
-			if nl, err := rb.nd.Node(endpoint, GRPC); err == nil {
+			if nl, err := rb.nd.Node(endpoint, GRPC, rb.Tag...); err == nil {
 				eventChan <- NodeEvent{
 					Event: NodeEventSync,
 					Node:  nl,
