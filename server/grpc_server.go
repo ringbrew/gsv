@@ -139,6 +139,7 @@ func (gs *grpcServer) Run(ctx context.Context) {
 	if gs.enableGateway {
 		gs.WaitGroup.Add(1)
 		go func() {
+			defer gs.WaitGroup.Done()
 			if err := gs.runGateway(ctx); err != nil {
 				log.Fatal(fmt.Errorf("server gateway run error:%s", err.Error()))
 			}
@@ -147,6 +148,7 @@ func (gs *grpcServer) Run(ctx context.Context) {
 
 	gs.WaitGroup.Add(1)
 	go func() {
+		defer gs.WaitGroup.Done()
 		if err := gs.run(ctx); err != nil {
 			log.Fatal(fmt.Errorf("server run error:%s", err.Error()))
 		}
@@ -160,6 +162,7 @@ func (gs *grpcServer) registerNode(ctx context.Context, node *discovery.Node) er
 		return nil
 	}
 
+	gs.WaitGroup.Add(1)
 	go func() {
 		defer gs.WaitGroup.Done()
 		select {
@@ -176,11 +179,13 @@ func (gs *grpcServer) registerNode(ctx context.Context, node *discovery.Node) er
 		return err
 	}
 
+	gs.WaitGroup.Add(1)
 	go func() {
 		defer func() {
 			if p := recover(); p != nil {
 				logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server[%s] keep alive panic:%v", gs.name, p)))
 			}
+			defer gs.WaitGroup.Done()
 		}()
 		if err := gs.register.KeepAlive(node); err != nil {
 			logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server[%s] keep alive error:%v", gs.name, err.Error())))
@@ -196,6 +201,7 @@ func (gs *grpcServer) run(ctx context.Context) error {
 		return err
 	}
 
+	gs.WaitGroup.Add(1)
 	go func() {
 		defer gs.WaitGroup.Done()
 		select {
@@ -236,6 +242,7 @@ func (gs *grpcServer) runGateway(ctx context.Context) error {
 		logger.Fatal(logger.NewEntry().WithMessage(fmt.Sprintf("gateway is nil")))
 	}
 
+	gs.WaitGroup.Add(1)
 	go func() {
 		defer gs.WaitGroup.Done()
 		<-ctx.Done()
