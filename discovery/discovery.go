@@ -1,8 +1,8 @@
 package discovery
 
 type NodeDiscover interface {
-	Node(name string, nodeType Type) ([]*Node, error)
-	Watch(name string, nodeType Type) (chan NodeEvent, error)
+	Node(name string, nodeType Type, tag ...string) ([]*Node, error)
+	Watch(name string, nodeType Type, tag ...string) (chan NodeEvent, error)
 }
 
 type NodeRegister interface {
