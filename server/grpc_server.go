@@ -179,13 +179,11 @@ func (gs *grpcServer) registerNode(ctx context.Context, node *discovery.Node) er
 		return err
 	}
 
-	gs.WaitGroup.Add(1)
 	go func() {
 		defer func() {
 			if p := recover(); p != nil {
 				logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server[%s] keep alive panic:%v", gs.name, p)))
 			}
-			defer gs.WaitGroup.Done()
 		}()
 		if err := gs.register.KeepAlive(node); err != nil {
 			logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server[%s] keep alive error:%v", gs.name, err.Error())))
