@@ -15,6 +15,7 @@ const (
 type Node struct {
 	Id    string   `json:"id"`
 	Name  string   `json:"name"`
+	Tag   string   `json:"tag"`
 	Host  string   `json:"host"`
 	Port  int      `json:"port"`
 	Type  Type     `json:"type"`
@@ -35,5 +36,10 @@ func NewNode(name, host string, port int, t Type, id ...string) *Node {
 		n.Id = uuid.New().String()
 	}
 
+	return n
+}
+
+func (n *Node) WithTag(tag string) *Node {
+	n.Tag = tag
 	return n
 }

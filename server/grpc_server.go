@@ -22,6 +22,7 @@ import (
 type grpcServer struct {
 	name               string
 	host               string
+	external           []string
 	port               int
 	proxyPort          int
 	nodeId             string
@@ -43,6 +44,7 @@ func newGrpcServer(opt Option) *grpcServer {
 	s := &grpcServer{
 		name:               opt.Name,
 		host:               opt.Host,
+		external:           opt.External,
 		port:               opt.Port,
 		proxyPort:          opt.ProxyPort,
 		nodeId:             opt.NodeId,
@@ -153,45 +155,71 @@ func (gs *grpcServer) Run(ctx context.Context) {
 	gs.WaitGroup.Wait()
 }
 
+func (gs *grpcServer) registerNode(ctx context.Context, node *discovery.Node) error {
+	if gs.register == nil || node == nil {
+		return nil
+	}
+
+	go func() {
+		defer gs.WaitGroup.Done()
+		select {
+		case <-ctx.Done():
+			if err := gs.register.Deregister(node); err != nil {
+				logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("node[%s]-[%s]-[%d] deregister error %s", node.Name, node.Host, node.Port, err.Error())))
+			} else {
+				logger.Info(logger.NewEntry().WithMessage(fmt.Sprintf("node[%s]-[%s]-[%d] success deregister", node.Name, node.Host, node.Port)))
+			}
+		}
+	}()
+
+	if err := gs.register.Register(node); err != nil {
+		return err
+	}
+
+	go func() {
+		defer func() {
+			if p := recover(); p != nil {
+				logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server[%s] keep alive panic:%v", gs.name, p)))
+			}
+		}()
+		if err := gs.register.KeepAlive(node); err != nil {
+			logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server[%s] keep alive error:%v", gs.name, err.Error())))
+		}
+	}()
+
+	return nil
+}
+
 func (gs *grpcServer) run(ctx context.Context) error {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", gs.port))
 	if err != nil {
 		return err
 	}
 
-	var node *discovery.Node
 	go func() {
 		defer gs.WaitGroup.Done()
 		select {
 		case <-ctx.Done():
-			if gs.register != nil && node != nil {
-				if err := gs.register.Deregister(node); err != nil {
-					logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("node[%s]-[%s]-[%d] deregister error %s", node.Name, node.Host, node.Port, err.Error())))
-				} else {
-					logger.Info(logger.NewEntry().WithMessage(fmt.Sprintf("node[%s]-[%s]-[%d] success deregister", node.Name, node.Host, node.Port)))
-				}
-			}
 			gs.gSrv.GracefulStop()
 			logger.Info(logger.NewEntry().WithMessage(fmt.Sprintf("rpc server stop listen on: [%d]", gs.port)))
 		}
 	}()
 
-	if gs.register != nil && gs.name != "" && gs.host != "" {
-		node = discovery.NewNode(gs.name, gs.host, gs.port, discovery.GRPC, gs.nodeId)
-		if err := gs.register.Register(node); err != nil {
-			return err
+	if gs.register != nil && gs.name != "" {
+		if gs.host != "" {
+			node := discovery.NewNode(gs.name, gs.host, gs.port, discovery.GRPC, gs.nodeId)
+			if err := gs.registerNode(ctx, node); err != nil {
+				return err
+			}
 		}
 
-		go func() {
-			defer func() {
-				if p := recover(); p != nil {
-					logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server[%s] keep alive panic:%v", gs.name, p)))
-				}
-			}()
-			if err := gs.register.KeepAlive(node); err != nil {
-				logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server[%s] keep alive error:%v", gs.name, err.Error())))
+		for _, v := range gs.external {
+			node := discovery.NewNode(gs.name, v, gs.port, discovery.GRPC, gs.nodeId)
+			node.WithTag(TagExternal)
+			if err := gs.registerNode(ctx, node); err != nil {
+				return err
 			}
-		}()
+		}
 	}
 
 	logger.Info(logger.NewEntry().WithMessage(fmt.Sprintf("rpc server start listen on: [%d]", gs.port)))
@@ -211,29 +239,29 @@ func (gs *grpcServer) runGateway(ctx context.Context) error {
 	go func() {
 		defer gs.WaitGroup.Done()
 		<-ctx.Done()
-		logger.Info(logger.NewEntry().WithMessage(fmt.Sprintf("rpc server gateway stop listen on: [%d]", gs.proxyPort)))
-
 		if err := gs.gSrvGateway.Shutdown(context.Background()); err != nil {
 			logger.Fatal(logger.NewEntry().WithMessage(fmt.Sprintf("failed to shutdown http server: %s", err.Error())))
 		}
+		logger.Info(logger.NewEntry().WithMessage(fmt.Sprintf("rpc server gateway stop listen on: [%d]", gs.proxyPort)))
 	}()
 
 	if gs.register != nil && gs.name != "" && gs.host != "" {
-		node := discovery.NewNode(gs.name, gs.host, gs.proxyPort, discovery.HTTP, gs.nodeId)
-		if err := gs.register.Register(node); err != nil {
-			return err
-		}
-		go func() {
-			defer func() {
-				if p := recover(); p != nil {
-					logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server[%s] gateway keep alive panic:%v", gs.name, p)))
-				}
-			}()
-			if err := gs.register.KeepAlive(node); err != nil {
-				logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("server[%s] gateway keep alive error:%v", gs.name, err.Error())))
+		if gs.host != "" {
+			node := discovery.NewNode(gs.name, gs.host, gs.proxyPort, discovery.HTTP, gs.nodeId)
+			if err := gs.registerNode(ctx, node); err != nil {
+				return err
 			}
-		}()
+		}
+
+		for _, v := range gs.external {
+			node := discovery.NewNode(gs.name, v, gs.proxyPort, discovery.HTTP, gs.nodeId)
+			node.WithTag(TagExternal)
+			if err := gs.registerNode(ctx, node); err != nil {
+				return err
+			}
+		}
 	}
+
 	logger.Info(logger.NewEntry().WithMessage(fmt.Sprintf("rpc server gateway start listen on: [%d]", gs.proxyPort)))
 
 	if err := gs.gSrvGateway.ListenAndServe(); err != nil && err != http.ErrServerClosed {

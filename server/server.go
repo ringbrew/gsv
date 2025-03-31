@@ -18,9 +18,12 @@ const (
 	HTTP Type = "http"
 )
 
+const TagExternal = "external"
+
 type Option struct {
 	Name           string
 	Host           string
+	External       []string
 	Port           int
 	ProxyPort      int
 	ServerRegister discovery.NodeRegister
