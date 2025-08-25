@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/ringbrew/gsv/logger"
 	"github.com/ringbrew/gsv/service"
@@ -17,7 +18,7 @@ import (
 )
 
 /*
-	HttpRecovery fork from negroni
+HttpRecovery fork from negroni
 */
 const nilRequestMessage = "Request is nil"
 const panicText = "PANIC: %s"
@@ -158,6 +159,10 @@ func (hl *HttpLogger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 		WithExtra("path", r.URL.Path).
 		WithExtra("status", status).
 		WithExtra("size", size)
+
+	if headerJson, err := json.Marshal(r.Header); err == nil {
+		entry.WithExtra("header", string(headerJson))
+	}
 
 	if hl.Name != "" {
 		entry = entry.WithExtra("name", hl.Name)
