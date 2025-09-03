@@ -200,6 +200,8 @@ func (hl *HttpLogger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 	contentType := strings.ToLower(r.Header.Get("Content-Type"))
 	// 使用 strings.Contains 是为了兼容 "application/json; charset=utf-8" 这种情况
 	if strings.Contains(contentType, "application/json") || strings.Contains(contentType, "application/x-www-form-urlencoded") {
+
+		logger.Info(logger.NewEntry(r.Context()).WithMessageF("123123123"))
 		// 检查 r.Body 是否为 nil，避免 panic
 		if r.Body != nil {
 			var err error
@@ -211,6 +213,9 @@ func (hl *HttpLogger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 				http.Error(rw, "can't read body", http.StatusBadRequest)
 				return
 			}
+
+			logger.Info(logger.NewEntry(r.Context()).WithMessageF("456456456,%s", string(bodyBytes)))
+
 			// 关键步骤：将读取出来的内容重新放回 r.Body
 			// 使用 bytes.NewBuffer 创建一个实现了 io.Reader 的 buffer
 			// 使用 io.NopCloser 包装它，使其成为一个 io.ReadCloser
@@ -243,7 +248,10 @@ func (hl *HttpLogger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 
 	// 5. 如果之前读取了 body，现在将其添加到日志中
 	// 确保 bodyBytes 不为 nil 且长度大于 0
+	logger.Info(logger.NewEntry(r.Context()).WithMessageF("555555555,%s", len(bodyBytes)))
+
 	if len(bodyBytes) > 0 {
+		logger.Info(logger.NewEntry(r.Context()).WithMessageF("789789789,%s", string(bodyBytes)))
 		// 直接将 []byte 转换为 string，效率很高
 		entry.WithExtra("body", string(bodyBytes))
 	}
