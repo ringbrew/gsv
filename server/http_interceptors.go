@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/ringbrew/gsv/logger"
 	"github.com/ringbrew/gsv/service"
@@ -9,9 +11,11 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	"go.opentelemetry.io/otel/trace"
+	"io"
 	"net/http"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 )
@@ -186,6 +190,33 @@ func (hl *HttpLogger) SetIgnore(key string, value interface{}) {
 
 func (hl *HttpLogger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	startTime := time.Now()
+
+	// 1. 初始化一个变量来存储请求体内容
+	var bodyBytes []byte
+
+	// 2. 检查 Content-Type，只对特定类型的请求读取 body
+	contentType := strings.ToLower(r.Header.Get("Content-Type"))
+	// 使用 strings.Contains 是为了兼容 "application/json; charset=utf-8" 这种情况
+	if strings.Contains(contentType, "application/json") || strings.Contains(contentType, "application/x-www-form-urlencoded") {
+		// 检查 r.Body 是否为 nil，避免 panic
+		if r.Body != nil {
+			var err error
+			// 核心步骤：读取 Body 内容
+			bodyBytes, err = io.ReadAll(r.Body)
+			if err != nil {
+				// 如果读取 Body 出错，记录一个错误日志并提前返回，避免继续处理一个坏的请求
+				logger.Error(logger.NewEntry(r.Context()).WithMessageF("failed to read request body"))
+				http.Error(rw, "can't read body", http.StatusBadRequest)
+				return
+			}
+			// 关键步骤：将读取出来的内容重新放回 r.Body
+			// 使用 bytes.NewBuffer 创建一个实现了 io.Reader 的 buffer
+			// 使用 io.NopCloser 包装它，使其成为一个 io.ReadCloser
+			// 这样下游的 next(rw, r) 就可以像从未被读取过一样正常消费 Body
+			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		}
+	}
+
 	next(rw, r)
 	duration := time.Since(startTime)
 
@@ -206,6 +237,21 @@ func (hl *HttpLogger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 		WithExtra("path", r.URL.Path).
 		WithExtra("status", status).
 		WithExtra("size", size)
+
+	if headerJson, err := json.Marshal(r.Header); err == nil {
+		entry.WithExtra("header", string(headerJson))
+	}
+
+	// 5. 如果之前读取了 body，现在将其添加到日志中
+	// 确保 bodyBytes 不为 nil 且长度大于 0
+	if len(bodyBytes) > 0 {
+		// 直接将 []byte 转换为 string，效率很高
+		entry.WithExtra("body", string(bodyBytes))
+	}
+
+	if hl.Name != "" {
+		entry = entry.WithExtra("name", hl.Name)
+	}
 
 	if !hl.f.Ignore(entry) {
 		if status >= http.StatusBadRequest {
