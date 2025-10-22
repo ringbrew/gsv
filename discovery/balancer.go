@@ -340,7 +340,7 @@ func (p *picker) Pick(info balancer.PickInfo) (balancer.PickResult, error) {
 	}
 
 	if key == nil || len(key) == 0 {
-		key = make([]byte, 10)
+		key = make([]byte, 16)
 		_, err := rand.Read(key)
 		if err != nil {
 			return balancer.PickResult{}, err
