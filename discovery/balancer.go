@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -331,7 +332,20 @@ type picker struct {
 var _ balancer.Picker = (*picker)(nil)
 
 func (p *picker) Pick(info balancer.PickInfo) (balancer.PickResult, error) {
-	key := info.Ctx.Value(cKey).([]byte)
+	var key []byte
+	if k := info.Ctx.Value(cKey); k != nil {
+		if kk, ok := k.([]byte); ok {
+			key = kk
+		}
+	}
+
+	if key == nil || len(key) == 0 {
+		key = make([]byte, 10)
+		_, err := rand.Read(key)
+		if err != nil {
+			return balancer.PickResult{}, err
+		}
+	}
 
 	members, err := p.hashring.FindN(key, p.spread)
 	if err != nil {
