@@ -1,12 +1,21 @@
 package cli
 
 import (
+	"github.com/ringbrew/gsv/discovery"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+type LoadBalancePolicy int
+
+const (
+	LoadBalancePolicyRoundRobin LoadBalancePolicy = iota
+	LoadBalancePolicyRingHash
+)
+
 type Option struct {
 	Secure             bool
+	LoadBalancePolicy  LoadBalancePolicy
 	StreamInterceptors []grpc.StreamClientInterceptor
 	UnaryInterceptors  []grpc.UnaryClientInterceptor
 }
@@ -57,7 +66,12 @@ func NewClient(target string, opts ...Option) (Client, error) {
 		dialOpts = append(dialOpts, grpc.WithChainStreamInterceptor(opt.StreamInterceptors...))
 	}
 
-	dialOpts = append(dialOpts, grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`))
+	switch opt.LoadBalancePolicy {
+	case LoadBalancePolicyRoundRobin:
+		dialOpts = append(dialOpts, grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`))
+	case LoadBalancePolicyRingHash:
+		dialOpts = append(dialOpts, grpc.WithDefaultServiceConfig(discovery.ConsistentServiceConfigJSON))
+	}
 
 	conn, err := grpc.Dial(target, dialOpts...)
 	if err != nil {

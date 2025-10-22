@@ -3,6 +3,7 @@ package discovery
 import (
 	"fmt"
 	"github.com/ringbrew/gsv/logger"
+	"google.golang.org/grpc/attributes"
 	"google.golang.org/grpc/resolver"
 	"strings"
 	"time"
@@ -92,7 +93,7 @@ func (r *gsvResolver) watch() {
 		resolverAddr := make([]resolver.Address, 0, len(r.cache))
 		for _, v := range r.cache {
 			endpoint := fmt.Sprintf("%s:%d", v.Host, v.Port)
-			resolverAddr = append(resolverAddr, resolver.Address{Addr: endpoint})
+			resolverAddr = append(resolverAddr, resolver.Address{Addr: endpoint, Attributes: attributes.New("id", v.Id).WithValue("tag", v.Tag)})
 		}
 		_ = r.cc.UpdateState(resolver.State{Addresses: resolverAddr})
 	}
