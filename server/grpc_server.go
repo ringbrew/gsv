@@ -4,6 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"net"
+	"net/http"
+	"sync"
+
 	grpcMiddleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/ringbrew/gsv/discovery"
@@ -13,10 +18,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/stats"
 	"google.golang.org/protobuf/encoding/protojson"
-	"log"
-	"net"
-	"net/http"
-	"sync"
 )
 
 type grpcServer struct {
@@ -32,10 +33,11 @@ type grpcServer struct {
 	statHandler        stats.Handler
 	register           discovery.NodeRegister
 
-	enableGateway bool
-	gSrvGateway   *http.Server
-	gatewayMux    *runtime.ServeMux
-	serviceList   []service.Service
+	enableGateway       bool
+	gSrvGateway         *http.Server
+	gatewayMux          *runtime.ServeMux
+	gatewayShutdownDone chan struct{} // 用于通知 gateway 已关闭完成
+	serviceList         []service.Service
 
 	WaitGroup sync.WaitGroup
 }
@@ -92,6 +94,7 @@ func newGrpcServer(opt Option) *grpcServer {
 
 		s.gatewayMux = m
 		s.gSrvGateway = hs
+		s.gatewayShutdownDone = make(chan struct{})
 	}
 
 	return s
@@ -165,13 +168,11 @@ func (gs *grpcServer) registerNode(ctx context.Context, node *discovery.Node) er
 	gs.WaitGroup.Add(1)
 	go func() {
 		defer gs.WaitGroup.Done()
-		select {
-		case <-ctx.Done():
-			if err := gs.register.Deregister(node); err != nil {
-				logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("node[%s]-[%s]-[%d] deregister error %s", node.Name, node.Host, node.Port, err.Error())))
-			} else {
-				logger.Info(logger.NewEntry().WithMessage(fmt.Sprintf("node[%s]-[%s]-[%d] success deregister", node.Name, node.Host, node.Port)))
-			}
+		<-ctx.Done()
+		if err := gs.register.Deregister(node); err != nil {
+			logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("node[%s]-[%s]-[%d] deregister error %s", node.Name, node.Host, node.Port, err.Error())))
+		} else {
+			logger.Info(logger.NewEntry().WithMessage(fmt.Sprintf("node[%s]-[%s]-[%d] success deregister", node.Name, node.Host, node.Port)))
 		}
 	}()
 
@@ -202,11 +203,13 @@ func (gs *grpcServer) run(ctx context.Context) error {
 	gs.WaitGroup.Add(1)
 	go func() {
 		defer gs.WaitGroup.Done()
-		select {
-		case <-ctx.Done():
-			gs.gSrv.GracefulStop()
-			logger.Info(logger.NewEntry().WithMessage(fmt.Sprintf("rpc server stop listen on: [%d]", gs.port)))
+		<-ctx.Done()
+		// 如果启用了 gateway，等待 gateway 先关闭完成
+		if gs.enableGateway && gs.gatewayShutdownDone != nil {
+			<-gs.gatewayShutdownDone
 		}
+		gs.gSrv.GracefulStop()
+		logger.Info(logger.NewEntry().WithMessage(fmt.Sprintf("rpc server stop listen on: [%d]", gs.port)))
 	}()
 
 	if gs.register != nil && gs.name != "" {
@@ -237,7 +240,7 @@ func (gs *grpcServer) run(ctx context.Context) error {
 
 func (gs *grpcServer) runGateway(ctx context.Context) error {
 	if gs.gSrvGateway == nil {
-		logger.Fatal(logger.NewEntry().WithMessage(fmt.Sprintf("gateway is nil")))
+		logger.Fatal(logger.NewEntry().WithMessage("gateway is nil"))
 	}
 
 	gs.WaitGroup.Add(1)
@@ -245,9 +248,11 @@ func (gs *grpcServer) runGateway(ctx context.Context) error {
 		defer gs.WaitGroup.Done()
 		<-ctx.Done()
 		if err := gs.gSrvGateway.Shutdown(context.Background()); err != nil {
-			logger.Fatal(logger.NewEntry().WithMessage(fmt.Sprintf("failed to shutdown http server: %s", err.Error())))
+			logger.Error(logger.NewEntry().WithMessage(fmt.Sprintf("failed to shutdown http server: %s", err.Error())))
 		}
 		logger.Info(logger.NewEntry().WithMessage(fmt.Sprintf("rpc server gateway stop listen on: [%d]", gs.proxyPort)))
+		// 通知 gRPC server 可以开始关闭了
+		close(gs.gatewayShutdownDone)
 	}()
 
 	if gs.register != nil && gs.name != "" && gs.host != "" {
