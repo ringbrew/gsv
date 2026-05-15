@@ -3,11 +3,6 @@ package binding
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ringbrew/gsv/server/binding/common"
-	"github.com/ringbrew/gsv/server/binding/consts"
-	inDecoder "github.com/ringbrew/gsv/server/binding/internal/decoder"
-	"github.com/ringbrew/gsv/server/binding/param"
-	"google.golang.org/protobuf/proto"
 	"io"
 	"net/http"
 	"net/url"
@@ -15,6 +10,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/ringbrew/gsv/server/binding/common"
+	"github.com/ringbrew/gsv/server/binding/consts"
+	inDecoder "github.com/ringbrew/gsv/server/binding/internal/decoder"
+	"github.com/ringbrew/gsv/server/binding/param"
+	"google.golang.org/protobuf/proto"
 )
 
 type Binder interface {
