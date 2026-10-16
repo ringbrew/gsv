@@ -63,12 +63,20 @@ func newGrpcServer(opt Option) *grpcServer {
 
 	opts := make([]grpc.ServerOption, 0)
 
-	if len(s.unaryInterceptors) > 0 {
-		opts = append(opts, grpcMiddleware.WithUnaryServerChain(opt.UnaryInterceptors...))
+	unary := s.unaryInterceptors
+	stream := s.streamInterceptors
+	if s.name != "" {
+		// Classic builds its interceptors before Name is set, so the name reaches them through ctx
+		unary = append([]grpc.UnaryServerInterceptor{serverNameUnaryInterceptor(s.name)}, unary...)
+		stream = append([]grpc.StreamServerInterceptor{serverNameStreamInterceptor(s.name)}, stream...)
 	}
 
-	if len(s.streamInterceptors) > 0 {
-		opts = append(opts, grpcMiddleware.WithStreamServerChain(opt.StreamInterceptors...))
+	if len(unary) > 0 {
+		opts = append(opts, grpcMiddleware.WithUnaryServerChain(unary...))
+	}
+
+	if len(stream) > 0 {
+		opts = append(opts, grpcMiddleware.WithStreamServerChain(stream...))
 	}
 
 	if s.statHandler != nil {

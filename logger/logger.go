@@ -87,6 +87,9 @@ func (entry *LogEntry) WithMessageF(format string, a ...interface{}) *LogEntry {
 }
 
 func (entry *LogEntry) WithExtra(key string, value interface{}) *LogEntry {
+	if entry.Extra == nil {
+		entry.Extra = make(map[string]interface{})
+	}
 	entry.Extra[key] = value
 	return entry
 }
@@ -110,22 +113,35 @@ func init() {
 	l = NewDefaultLogger()
 }
 
+// redactFor masks entry.Extra in place of the original map, so Logger
+// implementations that predate redaction still print masked values.
+func redactFor(level Level, entry *LogEntry) {
+	if l.GetLevel() <= level {
+		entry.Extra = entry.RedactedExtra()
+	}
+}
+
 func Debug(entry *LogEntry) {
+	redactFor(LevelDebug, entry)
 	l.Debug(entry)
 }
 
 func Info(entry *LogEntry) {
+	redactFor(LevelInfo, entry)
 	l.Info(entry)
 }
 
 func Warn(entry *LogEntry) {
+	redactFor(LevelWarn, entry)
 	l.Warn(entry)
 }
 
 func Error(entry *LogEntry) {
+	redactFor(LevelError, entry)
 	l.Error(entry)
 }
 
 func Fatal(entry *LogEntry) {
+	redactFor(LevelFatal, entry)
 	l.Fatal(entry)
 }

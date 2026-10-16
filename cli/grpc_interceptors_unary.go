@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"fmt"
 	"github.com/ringbrew/gsv/logger"
 	"github.com/ringbrew/gsv/service"
 	"github.com/ringbrew/gsv/tracex"
@@ -141,10 +140,16 @@ func LogUnaryInterceptor(opts ...LogOption) grpc.UnaryClientInterceptor {
 
 		start := time.Now()
 		err := invoker(ctx, method, req, reply, cc, callOpts...)
+		elapsed := time.Since(start)
 		if err != nil {
-			logger.Error(logger.NewEntry(ctx).WithMessage(fmt.Sprintf("call service[%s]-method[%s] req[%v], error[%s]", cc.Target(), method, req, err.Error())))
+			// req goes to extra rather than msg so that it can be redacted
+			entry := logger.NewEntry(ctx).
+				WithExtra("service", cc.Target()).
+				WithExtra("duration", elapsed.String()).
+				WithExtra("method", method).
+				WithExtra("req", req)
+			logger.Error(entry.WithMessage(err.Error()))
 		} else if !skip {
-			elapsed := time.Since(start)
 			entry := logger.NewEntry(ctx)
 			entry.WithExtra("service", cc.Target())
 			entry.WithExtra("duration", elapsed.String())

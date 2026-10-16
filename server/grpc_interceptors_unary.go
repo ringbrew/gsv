@@ -55,6 +55,17 @@ type logConfig struct {
 	skipRules       []LogSkip
 	skipFunc        func(fullMethod string) bool
 	keepErrorOnSkip bool
+	slowThreshold   time.Duration
+}
+
+const defaultSlowThreshold = 500 * time.Millisecond
+
+// WithLogSlowThreshold logs successful calls slower than d at warn level
+// instead of info. d <= 0 disables it. The default is 500ms.
+func WithLogSlowThreshold(d time.Duration) LogOption {
+	return func(c *logConfig) {
+		c.slowThreshold = d
+	}
 }
 
 // WithLogSkip skips logging for any call matching one of the given rules.
@@ -136,7 +147,7 @@ func (c *logConfig) shouldSkip(fullMethod string) bool {
 }
 
 func LogUnaryInterceptor(opts ...LogOption) grpc.UnaryServerInterceptor {
-	cfg := &logConfig{}
+	cfg := &logConfig{slowThreshold: defaultSlowThreshold}
 	for _, o := range opts {
 		o(cfg)
 	}
@@ -157,14 +168,41 @@ func LogUnaryInterceptor(opts ...LogOption) grpc.UnaryServerInterceptor {
 			WithExtra("duration", duration.String()).
 			WithExtra("codeString", code.String()).
 			WithExtra("code", code)
+		withCallerExtra(ctx, entry)
 
 		if err != nil {
 			logger.Error(entry.WithMessage(err.Error()))
 		} else if !skip {
-			logger.Info(entry.WithMessage("success"))
+			if cfg.slowThreshold > 0 && duration > cfg.slowThreshold {
+				logger.Warn(entry.WithMessage("success"))
+			} else {
+				logger.Info(entry.WithMessage("success"))
+			}
 		}
 
 		return resp, err
+	}
+}
+
+// withCallerExtra adds who called and who served. Keys are omitted when the
+// value is unknown.
+func withCallerExtra(ctx context.Context, entry *logger.LogEntry) {
+	if p := tracex.PeerFromCtx(ctx); p != "" {
+		entry.WithExtra("peer", p)
+	}
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		if v := md.Get(service.MetaKeyCaller); len(v) > 0 && v[0] != "" {
+			entry.WithExtra("caller_service", v[0])
+		}
+	}
+	if name := service.ServerNameFromContext(ctx); name != "" {
+		entry.WithExtra("name", name)
+	}
+}
+
+func serverNameUnaryInterceptor(name string) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		return handler(service.WithServerName(ctx, name), req)
 	}
 }
 

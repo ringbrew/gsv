@@ -12,6 +12,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	"go.opentelemetry.io/otel/trace"
 	"io"
+	"net"
 	"net/http"
 	"runtime"
 	"runtime/debug"
@@ -236,17 +237,29 @@ func (hl *HttpLogger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 		WithExtra("method", r.Method).
 		WithExtra("path", r.URL.Path).
 		WithExtra("status", status).
-		WithExtra("size", size)
+		WithExtra("size", size).
+		WithExtra("client_ip", clientIP(r))
 
-	if headerJson, err := json.Marshal(r.Header); err == nil {
+	if r.URL.RawQuery != "" {
+		entry.WithExtra("query", logger.RedactQuery(r.URL.RawQuery))
+	}
+	if caller := r.Header.Get(service.HeaderCaller); caller != "" {
+		entry.WithExtra("caller_service", caller)
+	}
+
+	// extra.header stays a JSON string so its index mapping does not change
+	if headerJson, err := json.Marshal(logger.RedactValue(loggableHeader(r.Header))); err == nil {
 		entry.WithExtra("header", string(headerJson))
 	}
 
 	// 5. 如果之前读取了 body，现在将其添加到日志中
 	// 确保 bodyBytes 不为 nil 且长度大于 0
 	if len(bodyBytes) > 0 {
-		// 直接将 []byte 转换为 string，效率很高
-		entry.WithExtra("body", string(bodyBytes))
+		body := string(bodyBytes)
+		if strings.Contains(contentType, "application/x-www-form-urlencoded") {
+			body = logger.RedactQuery(body)
+		}
+		entry.WithExtra("body", body)
 	}
 
 	if hl.Name != "" {
@@ -260,6 +273,35 @@ func (hl *HttpLogger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next ht
 			logger.Info(entry.WithMessage("success"))
 		}
 	}
+}
+
+// loggableHeader drops cookies, which are long and useless for debugging.
+// The result is a plain map so that the redactor's fast path handles it.
+func loggableHeader(h http.Header) map[string][]string {
+	out := make(map[string][]string, len(h))
+	for k, v := range h {
+		if k == "Cookie" {
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
+func clientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		first, _, _ := strings.Cut(xff, ",")
+		if ip := strings.TrimSpace(first); ip != "" {
+			return ip
+		}
+	}
+	if ip := strings.TrimSpace(r.Header.Get("X-Real-IP")); ip != "" {
+		return ip
+	}
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
 }
 
 const HttpTracerKey = "HttpTracer"

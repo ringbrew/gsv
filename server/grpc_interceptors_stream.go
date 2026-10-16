@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"github.com/ringbrew/gsv/service"
 	"github.com/ringbrew/gsv/tracex"
 	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/codes"
@@ -58,6 +59,9 @@ func TraceStreamServerInterceptor(opts ...Option) grpc.StreamServerInterceptor {
 		)
 		defer span.End()
 
+		sc := span.SpanContext()
+		ctx = service.NewContext(ctx, tracex.NewServiceContext(sc.TraceID(), sc.SpanID()))
+
 		err := handler(srv, wrapServerStream(ctx, ss))
 
 		if err != nil {
@@ -110,5 +114,20 @@ func wrapServerStream(ctx context.Context, ss grpc.ServerStream) *serverStream {
 	return &serverStream{
 		ServerStream: ss,
 		ctx:          ctx,
+	}
+}
+
+type contextServerStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (s *contextServerStream) Context() context.Context {
+	return s.ctx
+}
+
+func serverNameStreamInterceptor(name string) grpc.StreamServerInterceptor {
+	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		return handler(srv, &contextServerStream{ServerStream: ss, ctx: service.WithServerName(ss.Context(), name)})
 	}
 }

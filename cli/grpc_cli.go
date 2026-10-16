@@ -14,19 +14,30 @@ const (
 )
 
 type Option struct {
+	// Name is the calling service name sent to servers. It overrides the name
+	// given to Classic and SetDefaultName.
+	Name               string
 	Secure             bool
 	LoadBalancePolicy  LoadBalancePolicy
 	StreamInterceptors []grpc.StreamClientInterceptor
 	UnaryInterceptors  []grpc.UnaryClientInterceptor
 }
 
-func Classic() Option {
+// Classic returns the default client option. The optional name is sent to
+// servers as the calling service; without it SetDefaultName is used.
+func Classic(name ...string) Option {
+	caller := ""
+	if len(name) > 0 {
+		caller = name[0]
+	}
 	return Option{
 		Secure: false,
 		StreamInterceptors: []grpc.StreamClientInterceptor{
+			CallerStreamInterceptor(caller),
 			TraceStreamInterceptor(),
 		},
 		UnaryInterceptors: []grpc.UnaryClientInterceptor{
+			CallerUnaryInterceptor(caller),
 			TraceUnaryInterceptor(),
 			LogUnaryInterceptor(),
 		},
@@ -58,12 +69,20 @@ func NewClient(target string, opts ...Option) (Client, error) {
 		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	if len(opt.UnaryInterceptors) > 0 {
-		dialOpts = append(dialOpts, grpc.WithChainUnaryInterceptor(opt.UnaryInterceptors...))
+	unary := opt.UnaryInterceptors
+	stream := opt.StreamInterceptors
+	if opt.Name != "" {
+		// appended last so it runs after, and wins over, any caller interceptor in the list
+		unary = append(unary[:len(unary):len(unary)], CallerUnaryInterceptor(opt.Name))
+		stream = append(stream[:len(stream):len(stream)], CallerStreamInterceptor(opt.Name))
 	}
 
-	if len(opt.StreamInterceptors) > 0 {
-		dialOpts = append(dialOpts, grpc.WithChainStreamInterceptor(opt.StreamInterceptors...))
+	if len(unary) > 0 {
+		dialOpts = append(dialOpts, grpc.WithChainUnaryInterceptor(unary...))
+	}
+
+	if len(stream) > 0 {
+		dialOpts = append(dialOpts, grpc.WithChainStreamInterceptor(stream...))
 	}
 
 	switch opt.LoadBalancePolicy {
