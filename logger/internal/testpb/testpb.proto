@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package gsv.logger.testpb;
+
+option go_package = "github.com/ringbrew/gsv/logger/internal/testpb";
+
+enum Status {
+  STATUS_INVALID = 0;
+  STATUS_OK = 1;
+}
+
+message Inner {
+  string access_token = 1;
+  string region = 2;
+}
+
+message Account {
+  int64 id = 1;
+  string phone = 2;
+  string parse = 3;
+  string json_cred = 4;
+  Status status = 5;
+  Inner inner = 6;
+  repeated string phone_list = 7;
+  map<string, string> labels = 8;
+  bool online = 9;
+  oneof login {
+    string password = 10;
+    int64 uid = 11;
+  }
+  int64 session_id = 12;
+  bytes secret = 13;
+  repeated Inner inners = 14;
+  Inner credential = 15;
+}
+
+message QueryResp {
+  int64 total = 1;
+  repeated Account data = 2;
+}
+
+message Clean {
+  int64 id = 1;
+  string name = 2;
+  Clean child = 3;
+  repeated Status statuses = 4;
+  map<int64, Clean> children = 5;
+}

@@ -12,6 +12,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"unicode/utf8"
+
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -58,6 +60,8 @@ type Redactor struct {
 
 	// reflect.Type -> bool, whether values of the type may hold sensitive keys
 	types sync.Map
+	// protoreflect.MessageDescriptor -> *protoInfo
+	protoTypes sync.Map
 }
 
 type RedactorOption func(*Redactor)
@@ -82,7 +86,7 @@ func WithoutSensitiveKeys(keys ...string) RedactorOption {
 }
 
 // WithJSONKeys adds extra keys whose string values are JSON text to be parsed
-// and redacted.
+// and redacted. They apply at any depth, including fields of proto messages.
 func WithJSONKeys(keys ...string) RedactorOption {
 	return func(r *Redactor) {
 		for _, k := range keys {
@@ -119,6 +123,7 @@ func WithMask(fn func(string) string) RedactorOption {
 // WithDeepMarshalerScan makes the Redactor walk into types implementing
 // json.Marshaler or encoding.TextMarshaler. By default they are treated as
 // opaque values, because rewriting them would change their encoded form.
+// Proto messages are always scanned regardless, keeping their own encoding.
 func WithDeepMarshalerScan() RedactorOption {
 	return func(r *Redactor) {
 		r.deepMarshaler = true
@@ -610,8 +615,11 @@ func (r *Redactor) redactMap(m map[string]interface{}, depth int) (interface{}, 
 	for k, v := range m {
 		var nv interface{}
 		var changed bool
-		if r.isSensitive(k) {
+		sensitive, jsonKey := r.classifyKey(k)
+		if sensitive {
 			nv, changed = r.maskValue(v)
+		} else if s, ok := v.(string); ok && jsonKey {
+			nv, changed = r.redactJSONText(s)
 		} else {
 			nv, changed = r.redactValue(v, depth+1)
 		}
@@ -726,6 +734,9 @@ func (r *Redactor) needsWalk(t reflect.Type) bool {
 // computeNeedsWalk must only be cached for the root type: results for types
 // inside a cycle are provisional until the whole cycle has been visited.
 func (r *Redactor) computeNeedsWalk(t reflect.Type, visiting map[reflect.Type]bool) bool {
+	if md := protoDescriptorOf(t); md != nil {
+		return r.protoInfoFor(md).walk
+	}
 	if r.isOpaque(t) {
 		return false
 	}
@@ -750,10 +761,13 @@ func (r *Redactor) computeNeedsWalk(t reflect.Type, visiting map[reflect.Type]bo
 		}
 		visiting[t] = true
 		for _, f := range cachedFields(t) {
-			if !f.flatten && r.isSensitive(f.name) {
-				return true
+			ft := t.Field(f.index).Type
+			if !f.flatten {
+				if sensitive, jsonKey := r.classifyKey(f.name); sensitive || (jsonKey && ft.Kind() == reflect.String) {
+					return true
+				}
 			}
-			if r.computeNeedsWalk(t.Field(f.index).Type, visiting) {
+			if r.computeNeedsWalk(ft, visiting) {
 				return true
 			}
 		}
@@ -778,6 +792,11 @@ func isScalarKind(k reflect.Kind) bool {
 func (r *Redactor) redactReflect(rv reflect.Value, depth int) (interface{}, bool) {
 	if !rv.IsValid() || depth > r.maxDepth || isScalarKind(rv.Kind()) {
 		return nil, false
+	}
+	if rv.Kind() == reflect.Ptr && rv.CanInterface() && !rv.IsNil() {
+		if m, ok := rv.Interface().(proto.Message); ok {
+			return r.redactProto(m, depth)
+		}
 	}
 	if !r.needsWalk(rv.Type()) {
 		return nil, false
@@ -830,8 +849,11 @@ func (r *Redactor) scanStruct(rv reflect.Value, depth int, changes *map[string]i
 		}
 		var nv interface{}
 		var changed bool
-		if r.isSensitive(f.name) {
+		sensitive, jsonKey := r.classifyKey(f.name)
+		if sensitive {
 			nv, changed = r.maskReflect(fv)
+		} else if jsonKey && fv.Kind() == reflect.String {
+			nv, changed = r.redactJSONText(fv.String())
 		} else {
 			nv, changed = r.redactReflect(fv, depth)
 		}

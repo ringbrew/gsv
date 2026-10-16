@@ -58,15 +58,25 @@ logger.SetRedactor(logger.NewRedactor(
 ))
 ```
 
+**必须用 `SetRedactor` 包住**。只调用 `logger.NewRedactor(...)` 只是创建了一个对象，不会生效，日志仍按默认词表脱敏。
+
+匹配规则是"完全相等"或"以敏感词结尾"，不做前缀匹配：`phone` 能命中 `userPhone`，但命中不了 `phoneList`，这类字段要单独加。
+
 | 选项 | 作用 |
 |---|---|
 | `WithSensitiveKeys(keys...)` | 增加敏感词。长度 ≥ 5 的词同时按后缀匹配，复数 `s` 结尾也会命中 |
 | `WithoutSensitiveKeys(keys...)` | 移除敏感词，内置词也可移除 |
-| `WithJSONKeys(keys...)` | 增加"值是 JSON 文本"的 key |
+| `WithJSONKeys(keys...)` | 增加"值是 JSON 文本"的 key，任意层级都生效，包括 proto 字段（如 `jsonCred`） |
 | `WithMaxStringLen(n)` | `extra` 一级字符串超过 n 字节截断，默认 4096，`<=0` 关闭 |
 | `WithMaxDepth(n)` | 嵌套扫描深度，默认 8。更深的值原样输出 |
 | `WithMask(fn)` | 自定义掩码。**必须满足 `fn(fn(s)) == fn(s)`**，因为同一条日志可能被脱敏两次 |
-| `WithDeepMarshalerScan()` | 深入扫描实现了 `json.Marshaler` / `encoding.TextMarshaler` 的类型（默认把它们当作不透明值） |
+| `WithDeepMarshalerScan()` | 深入扫描实现了 `json.Marshaler` / `encoding.TextMarshaler` 的非 proto 类型（默认把它们当作不透明值）。proto message 不受此选项影响，总是会扫描 |
+
+### 3.0 proto message
+
+`protoc-gen-go-gsv` 生成的 message 自带 `MarshalJSON`（protojson，int64 输出为字符串、字段名 camelCase、空字段也输出）。脱敏时会复制一份 message、在副本上改值，输出仍走它自己的 `MarshalJSON`，所以除了被掩码的值，日志格式和原来完全一致。字段同时按 proto 名（`json_cred`）和 JSON 名（`jsonCred`）匹配。
+
+proto 里敏感字段的掩码：字符串和 `repeated string` 按掩码规则处理；其他类型清空成零值，protojson 会输出 `"0"`、`0`、`false`、`""`、`[]`、`{}` 或 `null`，JSON 类型不变。oneof 里的非字符串敏感字段清空后不再输出。
 
 完全关闭：`logger.SetRedactor(nil)`。
 
@@ -137,7 +147,9 @@ Apple M1 Pro 上的 benchmark（`go test ./logger/ -bench . -benchmem`）：
 | 被级别过滤掉的日志 | 0 | 0 |
 | 7 个标量 extra（典型的服务端被调日志） | 约 130ns | 0 |
 | proto message，类型里没有敏感字段 | 约 55ns | 0 |
-| proto message，有敏感字段且有值 | 约 1.9µs（同一 message 直接 `json.Marshal` 约 0.5µs） | 21 次 |
+| 普通 struct，有敏感字段且有值 | 约 1.9µs（同一 struct 直接 `json.Marshal` 约 0.5µs） | 21 次 |
+| protojson message，20 条 Account，无命中 | 约 8µs（protojson 编码本身约 86µs） | 1 次 |
+| protojson message，20 条 Account，有命中 | 约 66µs（protojson 编码本身约 170µs） | 约 1000 次 |
 | HTTP JSON body，不含敏感 key | 约 1ns/字节 | 0 |
 | HTTP JSON body，含敏感 key | 约 22µs/KB | 约 350 次/KB |
 
@@ -150,6 +162,7 @@ Apple M1 Pro 上的 benchmark（`go test ./logger/ -bench . -benchmem`）：
 - **`msg` 不脱敏**，只处理 `extra`。不要把敏感值拼进 `msg`。另外，HTTP 访问日志在状态码 ≥ 400 时 `msg` 是完整的响应体。
 - **struct / proto message 内部的长字符串不截断**；截断只作用于 `extra` 的一级字符串值。
 - 超过最大深度（默认 8 层）的值原样输出。
-- 实现了 `json.Marshaler` / `encoding.TextMarshaler` 的类型（如 `time.Time`）默认不深入扫描，只按它自己的 key 名判断。
+- 实现了 `json.Marshaler` / `encoding.TextMarshaler` 的非 proto 类型（如 `time.Time`）默认不深入扫描，只按它自己的 key 名判断。
+- proto message 里的 `google.protobuf.Any` 内容不扫描。
 - 通过**未导出**的匿名嵌入 struct 提升上来的字段，在发生掩码的那一层会被省略。
 - 掩码保持 JSON 类型：数字型敏感字段输出 `0`、布尔输出 `false`、对象输出 `{}`。看到 `"phone":0` 表示被掩码了，不是真实值。这样做是为了不和 Elasticsearch 里已有的字段映射冲突（冲突时整条日志会被拒）。
